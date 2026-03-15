@@ -108,12 +108,13 @@
 // Dark theme support
 .dark-theme {
   .app-container {
-    background-color: #121212;
+    background-color: var(--color-bg);
+    color: var(--color-text-primary);
   }
 
   .content-wrapper {
-    background-color: #121212;
-    color: #ffffff;
+    background-color: var(--color-bg);
+    color: var(--color-text-primary);
   }
 }
 
