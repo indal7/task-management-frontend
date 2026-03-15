@@ -150,7 +150,8 @@
                   *ngIf="task.assigned_to.avatar_url; else taskAvatarFallback" 
                   [src]="task.assigned_to.avatar_url" 
                   [alt]="task.assigned_to.name"
-                  [matTooltip]="task.assigned_to.name">
+                  [matTooltip]="task.assigned_to.name"
+                  (error)="onAvatarError($event)">
                 <ng-template #taskAvatarFallback>
                   <div class="avatar-initials" [matTooltip]="task.assigned_to.name">
                     {{ (task.assigned_to.name || 'U').charAt(0).toUpperCase() }}

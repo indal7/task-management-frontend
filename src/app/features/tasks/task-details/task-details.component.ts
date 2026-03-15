@@ -35,7 +35,6 @@ export class TaskDetailsComponent implements OnInit, OnDestroy {
   ) { }
 
   ngOnInit(): void {
-    debugger
     this.loadTaskDetails();
   }
 
@@ -361,5 +360,10 @@ export class TaskDetailsComponent implements OnInit, OnDestroy {
   // Clear error message
   clearError(): void {
     this.error = null;
+  }
+
+  onAvatarError(event: Event): void {
+    const img = event.target as HTMLImageElement;
+    if (img) { img.style.display = 'none'; }
   }
 }

@@ -1073,3 +1073,34 @@ textarea.form-input {
     align-items: center;
   }
 }
+// ============================================================
+// Dark Mode Support
+// ============================================================
+:host-context(body.dark-theme) {
+  .projects-container {
+    background-color: var(--color-bg, #121212);
+    color: var(--color-text-primary, #e0e0e0);
+  }
+
+  .project-card,
+  .modal-card,
+  .filter-bar {
+    background-color: var(--color-surface, #1e1e1e);
+    color: var(--color-text-primary, #e0e0e0);
+    border-color: var(--color-border, #333333);
+  }
+
+  .project-name,
+  .project-description,
+  mat-card-title {
+    color: var(--color-text-primary, #e0e0e0);
+  }
+
+  .project-description {
+    color: var(--color-text-secondary, #9e9e9e);
+  }
+
+  .stat-label {
+    color: var(--color-text-muted, #757575);
+  }
+}

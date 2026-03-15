@@ -314,4 +314,9 @@ export class DashboardComponent implements OnInit, OnDestroy {
     if (total === 0) return 0;
     return Math.round((completed / total) * 100);
   }
+
+  onAvatarError(event: Event): void {
+    const img = event.target as HTMLImageElement;
+    if (img) { img.style.display = 'none'; }
+  }
 }
