@@ -148,8 +148,8 @@
   <!-- KANBAN VIEW -->
   <div class="kanban-board" *ngIf="!isLoading && viewMode === 'kanban' && filteredTasks.length > 0">
     <div 
-      class="kanban-column" 
       *ngFor="let column of statusColumns"
+      [class]="getKanbanColumnClass(column.status)"
       [style.border-top-color]="column.color"
     >
       <div class="column-header">

@@ -169,6 +169,15 @@
         </div>
       </div>
 
+      <!-- Dark Mode Toggle -->
+      <button
+        mat-icon-button
+        [matTooltip]="isDarkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'"
+        (click)="toggleDarkMode()"
+        [attr.aria-label]="isDarkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'">
+        <mat-icon>{{ isDarkMode ? 'light_mode' : 'dark_mode' }}</mat-icon>
+      </button>
+
       <!-- Settings -->
       <button 
         mat-icon-button 

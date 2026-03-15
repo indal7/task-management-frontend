@@ -414,4 +414,8 @@ export class TaskListComponent implements OnInit, OnDestroy {
         }
       });
   }
+
+  getKanbanColumnClass(status: string): string {
+    return 'kanban-column status-' + status.toLowerCase().replace('_', '-');
+  }
 }

@@ -29,6 +29,7 @@ export class HeaderComponent implements OnInit, OnDestroy {
   searchQuery = '';
   isLoading = false;
   notifications: any[] = []; // Will be properly typed later
+  isDarkMode = false;
 
   constructor(
     private authService: AuthService,
@@ -39,6 +40,7 @@ export class HeaderComponent implements OnInit, OnDestroy {
   ngOnInit(): void {
     this.setupSubscriptions();
     this.loadInitialData();
+    this.isDarkMode = document.body.classList.contains('dark-theme');
   }
 
   ngOnDestroy(): void {
@@ -226,5 +228,16 @@ export class HeaderComponent implements OnInit, OnDestroy {
       event.preventDefault();
       this.onNotificationItemClick(notification);
     }
+  }
+
+  toggleDarkMode(): void {
+    this.isDarkMode = !this.isDarkMode;
+    const body = document.body;
+    body.classList.remove('light-theme', 'dark-theme');
+    body.classList.add(this.isDarkMode ? 'dark-theme' : 'light-theme');
+    // Persist using the same key and structure as SettingsComponent
+    const stored = JSON.parse(localStorage.getItem('userSettings') || '{}');
+    stored.general = { ...(stored.general || {}), theme: this.isDarkMode ? 'dark' : 'light' };
+    localStorage.setItem('userSettings', JSON.stringify(stored));
   }
 }

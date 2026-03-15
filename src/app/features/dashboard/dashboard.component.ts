@@ -235,31 +235,19 @@ export class DashboardComponent implements OnInit, OnDestroy {
   }
 
   onCreateTask(): void {
-    // Navigate to create task
-    console.log('Create task clicked');
-    // You can add router navigation here:
-    // this.router.navigate(['/tasks/create']);
+    this.router.navigate(['/tasks/create']);
   }
 
   onCreateProject(): void {
-    // Navigate to create project
-    console.log('Create project clicked');
-    // You can add router navigation here:
-    // this.router.navigate(['/projects/create']);
+    this.router.navigate(['/projects']);
   }
 
   onViewAllTasks(): void {
-    // Navigate to tasks list
-    console.log('View all tasks clicked');
-    // You can add router navigation here:
-    // this.router.navigate(['/tasks']);
+    this.router.navigate(['/tasks']);
   }
 
   onViewAllProjects(): void {
-    // Navigate to projects list
-    console.log('View all projects clicked');
-    // You can add router navigation here:
-    // this.router.navigate(['/projects']);
+    this.router.navigate(['/projects']);
   }
 
   onRefreshData(): void {
