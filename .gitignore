@@ -53,8 +53,8 @@ dist/
 out-tsc/
 coverage/
 
-# Environment files
-src/environments/environment*.ts
+# Environment files (keep development defaults in source control)
+# src/environments/environment*.ts
 
 # IDE and editor-specific files
 .vscode/
