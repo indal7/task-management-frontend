@@ -1,0 +1,35 @@
+# ============================================================
+# Development Dockerfile for task-management-frontend
+# Framework: Angular 18
+# ============================================================
+
+# Use the official Node.js LTS image based on Ubuntu (Jammy)
+# as the base image for building and running the Angular dev server.
+FROM node:20-jammy
+
+# Set the working directory inside the container.
+# All subsequent commands will be run from /app.
+WORKDIR /app
+
+# Copy package manifest files first to leverage Docker layer caching.
+# Dependencies will only be reinstalled when these files change.
+COPY package.json package-lock.json ./
+
+# Install all dependencies (including devDependencies) for development.
+RUN npm install
+
+# Copy the rest of the application source code into the container.
+COPY . .
+
+# VOLUME ["/app"] 
+# Uncomment the line above (or pass -v $(pwd):/app when running docker run)
+# to mount your local source into the container for live-reload during development.
+# Example: docker run -v $(pwd):/app -v /app/node_modules -p 4200:4200 task-management-frontend-dev
+
+# Expose the default Angular CLI development server port.
+EXPOSE 4200
+
+# Start the Angular development server.
+# --host 0.0.0.0 makes the server accessible outside the container.
+# --poll 500 enables file-change polling, useful inside Docker volumes.
+CMD ["npx", "ng", "serve", "--host", "0.0.0.0", "--poll", "500"]
