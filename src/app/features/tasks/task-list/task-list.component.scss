@@ -591,3 +591,49 @@
     }
   }
 }
+
+// ── Dark mode overrides ──────────────────────────────────────────────────
+:host-context(body.dark-theme) {
+  .task-list-container {
+    color: var(--color-text-primary);
+  }
+
+  .task-list-header h2 { color: var(--color-text-primary); }
+
+  .kanban-column {
+    background: var(--color-surface-alt, #2a2a2a);
+    box-shadow: var(--shadow-sm);
+  }
+
+  .kanban-task {
+    background: var(--color-surface, #1e1e1e);
+    h4 { color: var(--color-text-primary); }
+    .task-description { color: var(--color-text-secondary); }
+    .task-assignee {
+      color: var(--color-text-muted);
+      border-top-color: var(--color-border);
+    }
+  }
+
+  .task-item, .task-card {
+    background: var(--color-surface);
+    border-color: var(--color-border);
+    color: var(--color-text-primary);
+  }
+
+  .no-tasks {
+    background: var(--color-surface);
+    border-color: var(--color-border);
+    color: var(--color-text-secondary);
+    h3 { color: var(--color-text-primary); }
+  }
+
+  .filters, .view-controls {
+    color: var(--color-text-primary);
+    input, select {
+      background: var(--color-surface-alt);
+      color: var(--color-text-primary);
+      border-color: var(--color-border);
+    }
+  }
+}

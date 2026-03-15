@@ -2,7 +2,8 @@
 
 .app-container {
   min-height: 100vh;
-  background-color: #f8f9fa;
+  background-color: var(--color-bg, #f8f9fa);
+  color: var(--color-text-primary, #212529);
   transition: all 0.3s ease;
   margin-left: 0;
 
