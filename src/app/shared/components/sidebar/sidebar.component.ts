@@ -520,6 +520,11 @@ export class SidebarComponent implements OnInit, OnDestroy {
     return window.innerWidth <= 768;
   }
 
+  onAvatarError(event: Event): void {
+    const img = event.target as HTMLImageElement;
+    if (img) { img.style.display = 'none'; }
+  }
+
   // 🔧 NEW: Get visible menu items for template
   getVisibleMenuItems(): MenuItem[] {
     return this.menuItems.filter(item => !item.hidden);

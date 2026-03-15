@@ -346,3 +346,23 @@
     }
   }
 }
+// ============================================================
+// Dark Mode Support
+// ============================================================
+:host-context(body.dark-theme) {
+  .task-form-container {
+    background-color: var(--color-bg, #121212);
+    color: var(--color-text-primary, #e0e0e0);
+  }
+
+  .form-card,
+  mat-card {
+    background-color: var(--color-surface, #1e1e1e);
+    color: var(--color-text-primary, #e0e0e0);
+  }
+
+  .form-header h2,
+  mat-card-title {
+    color: var(--color-text-primary, #e0e0e0);
+  }
+}

@@ -168,7 +168,7 @@
               <div class="comment-header">
                 <div class="comment-author">
                   <div class="author-avatar" *ngIf="comment.user.avatar_url; else avatarFallback">
-                    <img [src]="comment.user.avatar_url" [alt]="comment.user.name">
+                    <img [src]="comment.user.avatar_url" [alt]="comment.user.name" (error)="onAvatarError($event)">
                   </div>
                     <ng-template #avatarFallback>
                       <div class="author-avatar-initials">
@@ -292,7 +292,7 @@
               <span class="label">Assigned to:</span>
               <div class="person-info" *ngIf="task.assigned_to; else unassigned">
                 <div class="person-avatar" *ngIf="task.assigned_to.avatar_url; else assigneeAvatarFallback">
-                  <img [src]="task.assigned_to.avatar_url" [alt]="task.assigned_to.name">
+                  <img [src]="task.assigned_to.avatar_url" [alt]="task.assigned_to.name" (error)="onAvatarError($event)">
                 </div>
                 <ng-template #assigneeAvatarFallback>
                   <div class="person-avatar-initials">
@@ -316,7 +316,7 @@
               <span class="label">Created by:</span>
               <div class="person-info">
                 <div class="person-avatar" *ngIf="task.created_by.avatar_url; else creatorAvatarFallback">
-                  <img [src]="task.created_by.avatar_url" [alt]="task.created_by.name">
+                  <img [src]="task.created_by.avatar_url" [alt]="task.created_by.name" (error)="onAvatarError($event)">
                 </div>
                 <ng-template #creatorAvatarFallback>
                   <div class="person-avatar-initials">

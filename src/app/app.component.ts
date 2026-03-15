@@ -1,12 +1,10 @@
-// Add this to your app.component.ts for better responsive handling
-
 import { Component, OnInit, OnDestroy, HostListener } from '@angular/core';
 import { Router, NavigationEnd } from '@angular/router';
 import { Subject } from 'rxjs';
 import { takeUntil, filter } from 'rxjs/operators';
 
 import { AuthService } from './core/services/auth.service';
-// import { LoadingService } from './core/interceptors/loading.interceptor';
+import { LoadingService } from './core/interceptors/loading.interceptor';
 import { EnumService } from './core/services/enum.service';
 import { NotificationService } from './core/services/notification.service';
 
@@ -20,17 +18,20 @@ export class AppComponent implements OnInit, OnDestroy {
   
   title = 'Task Management System';
   isAuthenticated = false;
-  // isLoading = false;
+  isLoading = false;
   showSidebar = true;
   sidebarCollapsed = false;
 
   constructor(
     private authService: AuthService,
-    // private loadingService: LoadingService,
+    private loadingService: LoadingService,
     private enumService: EnumService,
     private notificationService: NotificationService,
     private router: Router
-  ) {}
+  ) {
+    // Apply theme before any rendering occurs
+    this.initializeTheme();
+  }
 
   ngOnInit(): void {
     this.initializeApp();
@@ -43,42 +44,39 @@ export class AppComponent implements OnInit, OnDestroy {
     this.destroy$.complete();
   }
 
-  // 🔧 NEW: Handle window resize for responsive behavior
   @HostListener('window:resize', ['$event'])
   onResize(event: Event): void {
     const target = event.target as Window;
     const isMobile = target.innerWidth <= 768;
-    
-    // Auto-collapse sidebar on mobile, expand on desktop
     if (isMobile && !this.sidebarCollapsed) {
       this.sidebarCollapsed = true;
-      console.log('Auto-collapsed sidebar for mobile view');
-    } else if (!isMobile && this.sidebarCollapsed && target.innerWidth > 1024) {
-      // Auto-expand on large screens (optional behavior)
-      // this.sidebarCollapsed = false;
-      // console.log('Auto-expanded sidebar for desktop view');
+    }
+  }
+
+  private initializeTheme(): void {
+    try {
+      const stored = JSON.parse(localStorage.getItem('userSettings') || '{}');
+      const theme = (stored?.general?.theme as string) || 'light';
+      const body = document.body;
+      body.classList.remove('light-theme', 'dark-theme');
+      if (theme === 'auto') {
+        const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        body.classList.add(prefersDark ? 'dark-theme' : 'light-theme');
+      } else {
+        body.classList.add(`${theme}-theme`);
+      }
+    } catch {
+      document.body.classList.add('light-theme');
     }
   }
 
   private initializeApp(): void {
     // Initialize enum service (loads all dropdown data)
     this.enumService.loadAllEnums().subscribe({
-      next: (enums) => {
-        // console.log('✅ Enums loaded successfully');
-      },
       error: (error) => {
-        console.error('❌ Failed to load enums:', error);
+        console.error('Failed to load enums:', error);
       }
     });
-
-    // Start notification polling for authenticated users
-    // this.authService.isAuthenticated$
-    //   .pipe(takeUntil(this.destroy$))
-    //   .subscribe(isAuth => {
-    //     if (isAuth) {
-    //       this.notificationService.startPolling();
-    //     }
-    //   });
   }
 
   private setupSubscriptions(): void {
@@ -90,12 +88,12 @@ export class AppComponent implements OnInit, OnDestroy {
         this.updateSidebarVisibility();
       });
 
-    // Loading state
-    // this.loadingService.loading$
-    //   .pipe(takeUntil(this.destroy$))
-    //   .subscribe(isLoading => {
-    //     this.isLoading = isLoading;
-    //   });
+    // Global HTTP loading state from interceptor
+    this.loadingService.loading$
+      .pipe(takeUntil(this.destroy$))
+      .subscribe(isLoading => {
+        this.isLoading = isLoading;
+      });
 
     // Router events for sidebar visibility
     this.router.events
@@ -136,27 +134,16 @@ export class AppComponent implements OnInit, OnDestroy {
     this.showSidebar = true;
   }
 
-  // 🔧 ENHANCED: Save sidebar state and handle toggle
   onSidebarToggle(collapsed: boolean): void {
     this.sidebarCollapsed = collapsed;
-    
-    // Save user preference
     localStorage.setItem('sidebar-collapsed', JSON.stringify(collapsed));
-    
-    console.log('App component: Sidebar toggled, collapsed:', collapsed);
   }
 
-  // Manual sidebar toggle (if needed)
   toggleSidebar(): void {
     this.sidebarCollapsed = !this.sidebarCollapsed;
-    
-    // Save user preference
     localStorage.setItem('sidebar-collapsed', JSON.stringify(this.sidebarCollapsed));
-    
-    console.log('App component: Sidebar manually toggled, collapsed:', this.sidebarCollapsed);
   }
 
-  // 🔧 NEW: Helper method to get current screen size info
   getScreenInfo(): { isMobile: boolean; isTablet: boolean; isDesktop: boolean } {
     const width = window.innerWidth;
     return {

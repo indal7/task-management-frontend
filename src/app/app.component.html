@@ -1,4 +1,9 @@
-<!-- app.component.html - CLEANED VERSION -->
+<!-- app.component.html -->
+
+<!-- Global HTTP Loading Overlay -->
+<div class="global-loading-overlay" *ngIf="isLoading" aria-live="polite" role="status">
+  <app-loading message="Loading..." [overlay]="true"></app-loading>
+</div>
 
 <!-- Main App Layout -->
 <div class="app-container" 
@@ -22,18 +27,4 @@
     
   </div>
   
-</div>
-
-<!-- Global Notifications (Snackbar will appear here) -->
-<!-- PWA Update Available Notification -->
-<div class="pwa-update" *ngIf="false">
-  <mat-card>
-    <mat-card-content>
-      <div class="update-content">
-        <mat-icon>system_update</mat-icon>
-        <span>A new version is available!</span>
-        <button mat-button color="primary">Update</button>
-      </div>
-    </mat-card-content>
-  </mat-card>
 </div>

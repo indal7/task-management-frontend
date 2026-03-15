@@ -1,0 +1,23 @@
+
+// ============================================================
+// Dark Mode Support
+// ============================================================
+:host-context(body.dark-theme) {
+  .analytics-container {
+    background-color: var(--color-bg, #121212);
+    color: var(--color-text-primary, #e0e0e0);
+  }
+
+  .analytics-card,
+  .chart-card,
+  .metric-card {
+    background-color: var(--color-surface, #1e1e1e);
+    color: var(--color-text-primary, #e0e0e0);
+    border-color: var(--color-border, #333333);
+
+    mat-card-title { color: var(--color-text-primary, #e0e0e0); }
+  }
+
+  .stat-value { color: var(--color-text-primary, #e0e0e0); }
+  .stat-label { color: var(--color-text-secondary, #9e9e9e); }
+}

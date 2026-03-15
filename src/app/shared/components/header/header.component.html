@@ -199,7 +199,8 @@
               *ngIf="currentUser?.avatar_url; else avatarFallback" 
               [src]="currentUser?.avatar_url" 
               [alt]="(currentUser?.name || 'User') + ' avatar'"
-              loading="lazy">
+              loading="lazy"
+              (error)="onAvatarError($event)">
             <ng-template #avatarFallback>
               <div class="avatar-initials" [attr.aria-label]="currentUser?.name + ' initials'">
                 {{ getUserInitials() }}
