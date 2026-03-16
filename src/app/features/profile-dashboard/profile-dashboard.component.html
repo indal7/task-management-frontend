@@ -1,0 +1,520 @@
+<div class="profile-dashboard">
+
+  <!-- ── Loading State ─────────────────────────────────────────── -->
+  <div class="loading-overlay" *ngIf="isLoading">
+    <mat-progress-spinner mode="indeterminate" diameter="56"></mat-progress-spinner>
+    <p>Loading profile…</p>
+  </div>
+
+  <!-- ── Error State ───────────────────────────────────────────── -->
+  <div class="error-card" *ngIf="!isLoading && loadError">
+    <mat-icon class="error-icon">error_outline</mat-icon>
+    <h3>Unable to load profile</h3>
+    <p>{{ loadError }}</p>
+    <button mat-raised-button color="primary" (click)="refreshData()">
+      <mat-icon>refresh</mat-icon> Retry
+    </button>
+  </div>
+
+  <!-- ── Main Content ──────────────────────────────────────────── -->
+  <ng-container *ngIf="!isLoading && !loadError">
+
+    <!-- Page header row -->
+    <div class="page-header">
+      <div class="page-header-left">
+        <h1 class="page-title">
+          <mat-icon>account_circle</mat-icon>
+          Professional Profile
+        </h1>
+        <p class="page-subtitle">Manage your personal information and professional details</p>
+      </div>
+      <div class="page-header-actions">
+        <button mat-stroked-button (click)="refreshData()" matTooltip="Refresh data">
+          <mat-icon>refresh</mat-icon>
+        </button>
+        <button mat-raised-button color="primary" (click)="toggleEditMode()" *ngIf="!isEditMode">
+          <mat-icon>edit</mat-icon> Edit Profile
+        </button>
+      </div>
+    </div>
+
+    <!-- Success / error alerts (save) -->
+    <div class="alert alert-success" *ngIf="saveSuccess">
+      <mat-icon>check_circle</mat-icon> {{ saveSuccess }}
+    </div>
+    <div class="alert alert-error" *ngIf="saveError">
+      <mat-icon>error</mat-icon> {{ saveError }}
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════════
+         VIEW MODE
+         ═══════════════════════════════════════════════════════════ -->
+    <ng-container *ngIf="!isEditMode">
+
+      <!-- ── Row 1: Profile hero + quick stats ──────────────────── -->
+      <div class="grid grid-hero">
+
+        <!-- Profile Hero Card -->
+        <mat-card class="profile-hero-card">
+          <div class="hero-content">
+            <div class="avatar-wrapper">
+              <img
+                *ngIf="currentUser?.avatar_url; else initials"
+                [src]="currentUser!.avatar_url"
+                [alt]="currentUser!.name"
+                class="avatar-img"
+                (error)="onAvatarError($event)">
+              <ng-template #initials>
+                <div class="avatar-initials">{{ getUserInitials() }}</div>
+              </ng-template>
+              <span
+                class="status-dot"
+                [class.active]="currentUser?.is_active"
+                [matTooltip]="currentUser?.is_active ? 'Active' : 'Inactive'">
+              </span>
+            </div>
+
+            <div class="hero-info">
+              <h2 class="user-name">{{ currentUser?.name }}</h2>
+              <p class="user-email">
+                <mat-icon class="inline-icon">email</mat-icon>
+                {{ currentUser?.email }}
+              </p>
+              <span class="role-badge" [ngClass]="getRoleBadgeClass()">
+                {{ getUserRoleLabel() }}
+              </span>
+              <p class="user-bio" *ngIf="currentUser?.bio">{{ currentUser!.bio }}</p>
+            </div>
+          </div>
+
+          <!-- Meta row -->
+          <mat-divider class="hero-divider"></mat-divider>
+          <div class="hero-meta">
+            <span class="meta-item" *ngIf="currentUser?.timezone">
+              <mat-icon>schedule</mat-icon> {{ currentUser!.timezone }}
+            </span>
+            <span class="meta-item" *ngIf="currentUser?.phone">
+              <mat-icon>phone</mat-icon> {{ currentUser!.phone }}
+            </span>
+            <span class="meta-item" *ngIf="currentUser?.last_login">
+              <mat-icon>login</mat-icon> {{ getRelativeTime(currentUser!.last_login!) }}
+            </span>
+            <span class="meta-item">
+              <mat-icon>calendar_today</mat-icon>
+              Member since {{ currentUser?.created_at | date:'MMM yyyy' }}
+            </span>
+          </div>
+        </mat-card>
+
+        <!-- Quick Stats Column -->
+        <div class="quick-stats">
+          <mat-card class="stat-card">
+            <mat-card-content>
+              <div class="stat-icon-wrapper teal">
+                <mat-icon>task_alt</mat-icon>
+              </div>
+              <div class="stat-info">
+                <span class="stat-value">{{ taskStats?.completed_tasks ?? '—' }}</span>
+                <span class="stat-label">Tasks Completed</span>
+              </div>
+            </mat-card-content>
+          </mat-card>
+
+          <mat-card class="stat-card">
+            <mat-card-content>
+              <div class="stat-icon-wrapper blue">
+                <mat-icon>assignment</mat-icon>
+              </div>
+              <div class="stat-info">
+                <span class="stat-value">{{ taskStats?.total_tasks ?? '—' }}</span>
+                <span class="stat-label">Tasks Assigned</span>
+              </div>
+            </mat-card-content>
+          </mat-card>
+
+          <mat-card class="stat-card">
+            <mat-card-content>
+              <div class="stat-icon-wrapper orange">
+                <mat-icon>trending_up</mat-icon>
+              </div>
+              <div class="stat-info">
+                <span class="stat-value">{{ getCompletionRate() }}%</span>
+                <span class="stat-label">Completion Rate</span>
+              </div>
+            </mat-card-content>
+          </mat-card>
+
+          <mat-card class="stat-card">
+            <mat-card-content>
+              <div class="stat-icon-wrapper red">
+                <mat-icon>warning_amber</mat-icon>
+              </div>
+              <div class="stat-info">
+                <span class="stat-value">{{ userPerformance?.overdue_tasks ?? '—' }}</span>
+                <span class="stat-label">Overdue Tasks</span>
+              </div>
+            </mat-card-content>
+          </mat-card>
+        </div>
+
+      </div>
+
+      <!-- ── Row 2: Performance + Professional info ─────────────── -->
+      <div class="grid grid-middle">
+
+        <!-- Performance Metrics Card -->
+        <mat-card class="performance-card">
+          <mat-card-header>
+            <mat-icon mat-card-avatar>insights</mat-icon>
+            <mat-card-title>Performance Metrics</mat-card-title>
+            <mat-card-subtitle>Current month overview</mat-card-subtitle>
+          </mat-card-header>
+          <mat-card-content>
+
+            <!-- Completion Rate -->
+            <div class="metric-row">
+              <div class="metric-label-row">
+                <span class="metric-label">Task Completion Rate</span>
+                <span class="metric-value" [style.color]="getCompletionRateColor()">
+                  {{ getCompletionRate() }}%
+                </span>
+              </div>
+              <mat-progress-bar
+                mode="determinate"
+                [value]="getCompletionRate()"
+                [color]="getCompletionRate() >= 70 ? 'primary' : 'warn'">
+              </mat-progress-bar>
+            </div>
+
+            <!-- Productivity Score -->
+            <div class="metric-row" *ngIf="userPerformance">
+              <div class="metric-label-row">
+                <span class="metric-label">Productivity Score</span>
+                <span class="metric-value">{{ userPerformance.productivity_score | number:'1.0-0' }}</span>
+              </div>
+              <mat-progress-bar
+                mode="determinate"
+                [value]="userPerformance.productivity_score"
+                color="accent">
+              </mat-progress-bar>
+            </div>
+
+            <!-- KPI Grid -->
+            <div class="kpi-grid">
+              <div class="kpi-item">
+                <mat-icon class="kpi-icon blue">hourglass_empty</mat-icon>
+                <div>
+                  <span class="kpi-value">
+                    {{ userPerformance?.average_completion_time_days | number:'1.1-1' }}d
+                  </span>
+                  <span class="kpi-label">Avg. Completion</span>
+                </div>
+              </div>
+              <div class="kpi-item">
+                <mat-icon class="kpi-icon orange">pending_actions</mat-icon>
+                <div>
+                  <span class="kpi-value">{{ taskStats?.in_progress_tasks ?? '—' }}</span>
+                  <span class="kpi-label">In Progress</span>
+                </div>
+              </div>
+              <div class="kpi-item">
+                <mat-icon class="kpi-icon red">warning</mat-icon>
+                <div>
+                  <span class="kpi-value">{{ userPerformance?.overdue_tasks ?? '—' }}</span>
+                  <span class="kpi-label">Overdue</span>
+                </div>
+              </div>
+              <div class="kpi-item">
+                <mat-icon class="kpi-icon green">timer</mat-icon>
+                <div>
+                  <span class="kpi-value">
+                    {{ userPerformance?.total_hours_logged | number:'1.0-0' }}h
+                  </span>
+                  <span class="kpi-label">Hours Logged</span>
+                </div>
+              </div>
+            </div>
+
+          </mat-card-content>
+        </mat-card>
+
+        <!-- Professional Info Card -->
+        <mat-card class="pro-info-card">
+          <mat-card-header>
+            <mat-icon mat-card-avatar>badge</mat-icon>
+            <mat-card-title>Professional Information</mat-card-title>
+          </mat-card-header>
+          <mat-card-content>
+
+            <div class="info-grid">
+              <!-- Work Hours -->
+              <div class="info-item" *ngIf="currentUser?.daily_work_hours">
+                <mat-icon class="info-icon">work</mat-icon>
+                <div>
+                  <span class="info-label">Daily Work Hours</span>
+                  <span class="info-value">{{ currentUser!.daily_work_hours }}h / day</span>
+                </div>
+              </div>
+
+              <!-- Hourly Rate -->
+              <div class="info-item" *ngIf="currentUser?.hourly_rate">
+                <mat-icon class="info-icon">payments</mat-icon>
+                <div>
+                  <span class="info-label">Hourly Rate</span>
+                  <span class="info-value">${{ currentUser!.hourly_rate }}/hr</span>
+                </div>
+              </div>
+
+              <!-- GitHub -->
+              <div class="info-item" *ngIf="currentUser?.github_username">
+                <mat-icon class="info-icon">code</mat-icon>
+                <div>
+                  <span class="info-label">GitHub</span>
+                  <a
+                    class="info-link"
+                    [href]="'https://github.com/' + currentUser!.github_username"
+                    target="_blank"
+                    rel="noopener noreferrer">
+                    &#64;{{ currentUser!.github_username }}
+                  </a>
+                </div>
+              </div>
+
+              <!-- LinkedIn -->
+              <div class="info-item" *ngIf="currentUser?.linkedin_url">
+                <mat-icon class="info-icon">work_outline</mat-icon>
+                <div>
+                  <span class="info-label">LinkedIn</span>
+                  <a
+                    class="info-link"
+                    [href]="currentUser!.linkedin_url"
+                    target="_blank"
+                    rel="noopener noreferrer">
+                    View Profile
+                  </a>
+                </div>
+              </div>
+
+              <!-- Account Status -->
+              <div class="info-item">
+                <mat-icon class="info-icon" [class.active-icon]="currentUser?.is_active">
+                  {{ currentUser?.is_active ? 'check_circle' : 'cancel' }}
+                </mat-icon>
+                <div>
+                  <span class="info-label">Account Status</span>
+                  <span class="info-value" [class.active-text]="currentUser?.is_active">
+                    {{ currentUser?.is_active ? 'Active' : 'Inactive' }}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Skills -->
+            <div class="skills-section" *ngIf="currentUser?.skills?.length">
+              <p class="skills-heading">
+                <mat-icon>psychology</mat-icon> Skills &amp; Expertise
+              </p>
+              <div class="skills-chips">
+                <mat-chip-set aria-label="Skills">
+                  <mat-chip *ngFor="let skill of currentUser!.skills">{{ skill }}</mat-chip>
+                </mat-chip-set>
+              </div>
+            </div>
+
+          </mat-card-content>
+        </mat-card>
+
+      </div>
+
+      <!-- ── Row 3: Recent Projects + Activity ──────────────────── -->
+      <div class="grid grid-bottom">
+
+        <!-- Recent Projects Card -->
+        <mat-card class="projects-card">
+          <mat-card-header>
+            <mat-icon mat-card-avatar>folder_open</mat-icon>
+            <mat-card-title>Recent Projects</mat-card-title>
+            <mat-card-subtitle>Current involvement overview</mat-card-subtitle>
+          </mat-card-header>
+          <mat-card-content>
+            <div class="project-list">
+              <div class="project-item" *ngFor="let project of recentProjects">
+                <div class="project-header-row">
+                  <span class="project-name">{{ project.name }}</span>
+                  <span class="project-badge" [ngClass]="getProjectStatusClass(project.status)">
+                    {{ getProjectStatusLabel(project.status) }}
+                  </span>
+                </div>
+                <div class="progress-row">
+                  <mat-progress-bar
+                    mode="determinate"
+                    [value]="project.progress"
+                    [color]="project.progress === 100 ? 'accent' : 'primary'">
+                  </mat-progress-bar>
+                  <span class="progress-pct">{{ project.progress }}%</span>
+                </div>
+              </div>
+            </div>
+          </mat-card-content>
+        </mat-card>
+
+        <!-- Activity Timeline Card -->
+        <mat-card class="activity-card">
+          <mat-card-header>
+            <mat-icon mat-card-avatar>history</mat-icon>
+            <mat-card-title>Recent Activity</mat-card-title>
+          </mat-card-header>
+          <mat-card-content>
+            <div class="activity-timeline">
+              <div class="activity-item" *ngFor="let item of recentActivity">
+                <div class="activity-icon-wrapper" [ngClass]="'color-' + item.color">
+                  <mat-icon>{{ item.icon }}</mat-icon>
+                </div>
+                <div class="activity-body">
+                  <p class="activity-title">{{ item.title }}</p>
+                  <p class="activity-desc">{{ item.description }}</p>
+                  <small class="activity-time" *ngIf="item.time">{{ item.time }}</small>
+                </div>
+              </div>
+            </div>
+          </mat-card-content>
+        </mat-card>
+
+      </div>
+
+    </ng-container>
+    <!-- /VIEW MODE -->
+
+
+    <!-- ═══════════════════════════════════════════════════════════
+         EDIT MODE
+         ═══════════════════════════════════════════════════════════ -->
+    <ng-container *ngIf="isEditMode">
+
+      <mat-card class="edit-card">
+        <mat-card-header>
+          <mat-icon mat-card-avatar>edit</mat-icon>
+          <mat-card-title>Edit Profile</mat-card-title>
+          <mat-card-subtitle>Update your professional information</mat-card-subtitle>
+        </mat-card-header>
+        <mat-card-content>
+          <form [formGroup]="editForm" (ngSubmit)="saveProfile()">
+
+            <!-- Basic Info -->
+            <h3 class="form-section-title">Basic Information</h3>
+            <div class="form-grid">
+              <mat-form-field appearance="outline">
+                <mat-label>Full Name</mat-label>
+                <input matInput formControlName="name">
+                <mat-icon matSuffix>person</mat-icon>
+                <mat-error *ngIf="isFieldInvalid('name')">{{ getFieldError('name') }}</mat-error>
+              </mat-form-field>
+
+              <mat-form-field appearance="outline">
+                <mat-label>Email</mat-label>
+                <input matInput type="email" formControlName="email">
+                <mat-icon matSuffix>email</mat-icon>
+                <mat-error *ngIf="isFieldInvalid('email')">{{ getFieldError('email') }}</mat-error>
+              </mat-form-field>
+            </div>
+
+            <mat-form-field appearance="outline" class="full-width">
+              <mat-label>Bio</mat-label>
+              <textarea matInput formControlName="bio" rows="3" maxlength="500"
+                        placeholder="Tell us about yourself..."></textarea>
+              <mat-hint align="end">{{ editForm.get('bio')?.value?.length || 0 }}/500</mat-hint>
+              <mat-error *ngIf="isFieldInvalid('bio')">{{ getFieldError('bio') }}</mat-error>
+            </mat-form-field>
+
+            <!-- Contact -->
+            <h3 class="form-section-title">Contact &amp; Links</h3>
+            <div class="form-grid">
+              <mat-form-field appearance="outline">
+                <mat-label>Phone</mat-label>
+                <input matInput formControlName="phone" placeholder="+1-555-0123">
+                <mat-icon matSuffix>phone</mat-icon>
+                <mat-error *ngIf="isFieldInvalid('phone')">{{ getFieldError('phone') }}</mat-error>
+              </mat-form-field>
+
+              <mat-form-field appearance="outline">
+                <mat-label>Timezone</mat-label>
+                <mat-select formControlName="timezone">
+                  <mat-option *ngFor="let tz of getTimezoneOptions()" [value]="tz.value">
+                    {{ tz.label }}
+                  </mat-option>
+                </mat-select>
+              </mat-form-field>
+
+              <mat-form-field appearance="outline">
+                <mat-label>GitHub Username</mat-label>
+                <input matInput formControlName="github_username" placeholder="johnsmith">
+                <mat-icon matSuffix>code</mat-icon>
+                <mat-error *ngIf="isFieldInvalid('github_username')">{{ getFieldError('github_username') }}</mat-error>
+              </mat-form-field>
+
+              <mat-form-field appearance="outline">
+                <mat-label>LinkedIn URL</mat-label>
+                <input matInput formControlName="linkedin_url"
+                       placeholder="https://linkedin.com/in/johnsmith">
+                <mat-icon matSuffix>work_outline</mat-icon>
+                <mat-error *ngIf="isFieldInvalid('linkedin_url')">{{ getFieldError('linkedin_url') }}</mat-error>
+              </mat-form-field>
+            </div>
+
+            <!-- Work Details -->
+            <h3 class="form-section-title">Work Details</h3>
+            <div class="form-grid">
+              <mat-form-field appearance="outline">
+                <mat-label>Daily Work Hours</mat-label>
+                <input matInput type="number" formControlName="daily_work_hours" min="1" max="24">
+                <mat-icon matSuffix>work</mat-icon>
+                <mat-error *ngIf="isFieldInvalid('daily_work_hours')">
+                  {{ getFieldError('daily_work_hours') }}
+                </mat-error>
+              </mat-form-field>
+
+              <mat-form-field appearance="outline">
+                <mat-label>Hourly Rate (USD)</mat-label>
+                <input matInput type="number" formControlName="hourly_rate" min="0">
+                <mat-icon matSuffix>payments</mat-icon>
+                <mat-error *ngIf="isFieldInvalid('hourly_rate')">{{ getFieldError('hourly_rate') }}</mat-error>
+              </mat-form-field>
+            </div>
+
+            <!-- Skills -->
+            <h3 class="form-section-title">Skills</h3>
+            <mat-form-field appearance="outline" class="full-width">
+              <mat-label>Skills</mat-label>
+              <input matInput formControlName="skills"
+                     placeholder="JavaScript, Python, React (comma-separated)">
+              <mat-icon matSuffix>psychology</mat-icon>
+              <mat-hint>Separate skills with commas</mat-hint>
+            </mat-form-field>
+
+            <!-- Actions -->
+            <div class="edit-actions">
+              <button mat-stroked-button type="button" (click)="cancelEdit()">
+                <mat-icon>close</mat-icon> Cancel
+              </button>
+              <button mat-raised-button color="primary" type="submit" [disabled]="isSaving">
+                <mat-progress-spinner
+                  *ngIf="isSaving"
+                  mode="indeterminate"
+                  diameter="20"
+                  class="btn-spinner">
+                </mat-progress-spinner>
+                <mat-icon *ngIf="!isSaving">save</mat-icon>
+                {{ isSaving ? 'Saving...' : 'Save Changes' }}
+              </button>
+            </div>
+
+          </form>
+        </mat-card-content>
+      </mat-card>
+
+    </ng-container>
+    <!-- /EDIT MODE -->
+
+  </ng-container>
+
+</div>
