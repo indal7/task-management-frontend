@@ -150,7 +150,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
       // All projects to get total count
       allProjects: this.projectService.getProjects({ page: 1, per_page: 1 }).pipe(
         // 
-        map(response => 10),
+        map(response => response.pagination?.total || response.data?.length || 0),
         catchError(error => {
           console.error('Error loading project count:', error);
           return of(0);

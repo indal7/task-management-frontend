@@ -1,10 +1,11 @@
 import { Component, OnInit, OnDestroy } from '@angular/core';
 import { FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { forkJoin, Subject, of } from 'rxjs';
-import { takeUntil, catchError } from 'rxjs/operators';
+import { takeUntil, catchError, map } from 'rxjs/operators';
 
 import { AuthService } from '../../core/services/auth.service';
 import { AnalyticsService, TaskCompletionRate, UserPerformance } from '../../core/services/analytics.service';
+import { ProjectService } from '../../core/services/project.service';
 import { EnumService } from '../../core/services/enum.service';
 import { User, ProfileUpdateRequest } from '../../core/models';
 
@@ -50,6 +51,7 @@ export class ProfileDashboardComponent implements OnInit, OnDestroy {
   constructor(
     private authService: AuthService,
     private analyticsService: AnalyticsService,
+    private projectService: ProjectService,
     private enumService: EnumService,
     private fb: FormBuilder
   ) {
@@ -96,18 +98,34 @@ export class ProfileDashboardComponent implements OnInit, OnDestroy {
     forkJoin({
       user: this.authService.getCurrentUser().pipe(catchError(() => of(null))),
       taskStats: this.analyticsService.getTaskCompletionRate('month').pipe(catchError(() => of(null))),
-      performance: this.analyticsService.getUserProductivity().pipe(catchError(() => of(null)))
+      performance: this.analyticsService.getUserProductivity().pipe(catchError(() => of(null))),
+      projectAnalytics: this.analyticsService.getProjectAnalytics().pipe(catchError(() => of([]))),
+      projects: this.projectService.getProjects().pipe(
+        map(resp => resp.data),
+        catchError(() => of([] as any[]))
+      )
     })
       .pipe(takeUntil(this.destroy$))
       .subscribe({
-        next: ({ user, taskStats, performance }) => {
+        next: ({ user, taskStats, performance, projectAnalytics, projects }) => {
           if (user) {
             this.currentUser = user;
           }
           this.taskStats = taskStats;
           this.userPerformance = performance;
           this.buildActivityFeed();
-          this.buildMockProjects();
+
+          const projectStatusMap: { [id: number]: string } = {};
+          for (const p of projects) {
+            projectStatusMap[p.id] = p.status;
+          }
+
+          this.recentProjects = (projectAnalytics as any[]).slice(0, 5).map((p: any) => ({
+            id: p.project_id,
+            name: p.project_name,
+            status: projectStatusMap[p.project_id] || 'ACTIVE',
+            progress: Math.round(p.completion_rate ?? 0)
+          }));
           this.isLoading = false;
         },
         error: () => {
@@ -160,14 +178,6 @@ export class ProfileDashboardComponent implements OnInit, OnDestroy {
         time: this.currentUser?.created_at ? this.getRelativeTime(this.currentUser.created_at) : '',
         color: 'purple'
       }
-    ];
-  }
-
-  private buildMockProjects(): void {
-    this.recentProjects = [
-      { id: 1, name: 'Task Management System', status: 'IN_PROGRESS', progress: 65 },
-      { id: 2, name: 'API Integration', status: 'IN_PROGRESS', progress: 40 },
-      { id: 3, name: 'UI Redesign', status: 'COMPLETED', progress: 100 }
     ];
   }
 

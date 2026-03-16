@@ -1,8 +1,9 @@
 
 // src/app/features/analytics/analytics-overview/analytics-overview.component.ts
 import { Component, OnInit, OnDestroy } from '@angular/core';
-import { Subject } from 'rxjs';
-import { takeUntil } from 'rxjs/operators';
+import { Subject, forkJoin } from 'rxjs';
+import { takeUntil, catchError } from 'rxjs/operators';
+import { of } from 'rxjs';
 import { AnalyticsService } from '../../core/services/analytics.service';
 import { AuthService } from '../../core/services/auth.service';
 import { TaskService } from '../../core/services/task.service';
@@ -625,112 +626,186 @@ export class AnalyticsOverviewComponent implements OnInit, OnDestroy {
     this.isLoading = true;
     this.errorMessage = null;
 
-    // Simulate loading analytics data
-    setTimeout(() => {
-      this.generateMockData();
-      this.isLoading = false;
-    }, 1500);
+    const periodMap: { [key: string]: string } = {
+      '7d': 'week',
+      '30d': 'month',
+      '3m': 'month',
+      '1y': 'year'
+    };
+    const period = periodMap[this.selectedPeriod] || 'month';
+
+    forkJoin({
+      taskCompletion: this.analyticsService.getTaskCompletionRate(period).pipe(catchError(() => of(null))),
+      userProductivity: this.analyticsService.getUserProductivity().pipe(catchError(() => of(null))),
+      projectAnalytics: this.analyticsService.getProjectAnalytics().pipe(catchError(() => of([]))),
+      teamPerformance: this.analyticsService.getTeamPerformanceMetrics().pipe(catchError(() => of(null))),
+      comparison: this.analyticsService.getComparisonAnalytics().pipe(catchError(() => of(null)))
+    }).pipe(
+      takeUntil(this.destroy$)
+    ).subscribe({
+      next: (data) => {
+        this.buildAnalyticsCards(data.taskCompletion, data.userProductivity, data.teamPerformance, data.comparison);
+        this.buildChartData(data.taskCompletion);
+        this.buildProjectProgress(data.projectAnalytics as any[]);
+        this.buildTeamPerformance(data.teamPerformance);
+        this.buildInsights(data.taskCompletion, data.userProductivity, data.teamPerformance, data.comparison);
+        this.isLoading = false;
+      },
+      error: () => {
+        this.errorMessage = 'Failed to load analytics data. Please try again.';
+        this.isLoading = false;
+      }
+    });
   }
 
-  onPeriodChange(): void {
-    this.loadAnalyticsData();
-  }
+  private buildAnalyticsCards(taskCompletion: any, userProductivity: any, teamPerformance: any, comparison: any): void {
+    const completionRateChange = comparison?.change?.completion_rate_change ?? 0;
+    const tasksChange = comparison?.change?.total_tasks_change ?? 0;
+    const completedChange = comparison?.change?.completed_tasks_change ?? 0;
 
-  private generateMockData(): void {
-    // Analytics Cards
     this.analyticsCards = [
       {
         title: 'Total Tasks',
-        value: 247,
-        change: 12,
-        changeType: 'increase',
+        value: taskCompletion?.total_tasks ?? 0,
+        change: tasksChange,
+        changeType: tasksChange > 0 ? 'increase' : tasksChange < 0 ? 'decrease' : 'neutral',
         icon: 'assignment',
         color: '#667eea'
       },
       {
         title: 'Completed Tasks',
-        value: 189,
-        change: 8,
-        changeType: 'increase',
+        value: taskCompletion?.completed_tasks ?? 0,
+        change: completedChange,
+        changeType: completedChange > 0 ? 'increase' : completedChange < 0 ? 'decrease' : 'neutral',
         icon: 'task_alt',
         color: '#10b981'
       },
       {
         title: 'Team Productivity',
-        value: '87%',
-        change: -2,
-        changeType: 'decrease',
+        value: `${Math.round(teamPerformance?.average_completion_rate ?? 0)}%`,
+        change: Math.round(completionRateChange),
+        changeType: completionRateChange > 0 ? 'increase' : completionRateChange < 0 ? 'decrease' : 'neutral',
         icon: 'trending_up',
         color: '#f59e0b'
       },
       {
-        title: 'Average Response Time',
-        value: '2.4h',
-        change: 15,
-        changeType: 'increase',
+        title: 'Avg. Completion Time',
+        value: `${(userProductivity?.average_completion_time_days ?? 0).toFixed(1)}d`,
+        change: 0,
+        changeType: 'neutral',
         icon: 'schedule',
         color: '#ef4444'
       }
     ];
+  }
 
-    // Task Completion Chart Data
-    this.chartLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-    this.taskCompletionData = [65, 78, 82, 45, 91, 67, 73];
+  private buildChartData(taskCompletion: any): void {
+    const daily = taskCompletion?.daily_completion ?? [];
+    const slice = daily.slice(-7);
+    if (slice.length > 0) {
+      this.chartLabels = slice.map((d: any) => {
+        const date = new Date(d.date);
+        return date.toLocaleDateString('en-US', { weekday: 'short' });
+      });
+      const maxVal = Math.max(...slice.map((d: any) => d.completed), 1);
+      this.taskCompletionData = slice.map((d: any) => Math.round((d.completed / maxVal) * 100));
+    } else {
+      this.chartLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+      this.taskCompletionData = [0, 0, 0, 0, 0, 0, 0];
+    }
+  }
 
-    // Project Progress Data
-    this.projectProgressData = [
-      { name: 'Website Redesign', progress: 87 },
-      { name: 'Mobile App', progress: 65 },
-      { name: 'API Development', progress: 42 },
-      { name: 'Admin Panel', progress: 78 }
-    ];
+  private buildProjectProgress(projectAnalytics: any[]): void {
+    this.projectProgressData = (projectAnalytics ?? [])
+      .slice(0, 5)
+      .map((p: any) => ({
+        name: p.project_name,
+        progress: Math.round(p.completion_rate ?? 0)
+      }));
+  }
 
-    // Team Performance Data
-    this.teamPerformanceData = [
-      {
-        name: 'John Doe',
-        role: 'Senior Developer',
+  private buildTeamPerformance(teamPerformance: any): void {
+    const members: any[] = [];
+    if (teamPerformance?.most_productive_member) {
+      members.push({
+        name: teamPerformance.most_productive_member.user_name,
+        role: 'Top Performer',
         avatar: null,
-        tasksCompleted: 23,
-        productivity: 92
-      },
-      {
-        name: 'Jane Smith',
-        role: 'Project Manager',
+        tasksCompleted: teamPerformance.completed_tasks ?? 0,
+        productivity: Math.round(teamPerformance.most_productive_member.completion_rate ?? 0)
+      });
+    }
+    if (teamPerformance?.least_productive_member &&
+        teamPerformance.least_productive_member.user_id !== teamPerformance.most_productive_member?.user_id) {
+      members.push({
+        name: teamPerformance.least_productive_member.user_name,
+        role: 'Team Member',
         avatar: null,
-        tasksCompleted: 18,
-        productivity: 88
-      },
-      {
-        name: 'Mike Johnson',
-        role: 'Designer',
-        avatar: null,
-        tasksCompleted: 15,
-        productivity: 75
-      }
-    ];
+        tasksCompleted: 0,
+        productivity: Math.round(teamPerformance.least_productive_member.completion_rate ?? 0)
+      });
+    }
+    this.teamPerformanceData = members;
+  }
 
-    // Insights
-    this.insights = [
-      {
-        title: 'Peak Productivity Day',
-        description: 'Friday shows the highest task completion rate this week with 91% efficiency.',
+  private buildInsights(taskCompletion: any, userProductivity: any, teamPerformance: any, comparison: any): void {
+    const insights: any[] = [];
+    const rate = taskCompletion?.completion_rate ?? 0;
+    const avgRate = teamPerformance?.average_completion_rate ?? 0;
+    const rateChange = comparison?.change?.completion_rate_change ?? 0;
+
+    if (rate >= 75) {
+      insights.push({
+        title: 'Strong Completion Rate',
+        description: `Your task completion rate is ${Math.round(rate)}%, which is above the typical 75% benchmark. Keep it up!`,
         icon: 'insights',
         color: '#10b981'
-      },
-      {
-        title: 'Response Time Improvement Needed',
-        description: 'Average response time increased by 15%. Consider reviewing communication processes.',
+      });
+    } else if (rate > 0) {
+      insights.push({
+        title: 'Completion Rate Needs Attention',
+        description: `Your task completion rate is ${Math.round(rate)}%. Focus on completing in-progress tasks to improve this metric.`,
         icon: 'warning',
         color: '#f59e0b'
-      },
-      {
-        title: 'Team Performance',
-        description: 'Overall team productivity is at 87%, which is above the industry average of 75%.',
+      });
+    }
+
+    if (rateChange !== 0) {
+      insights.push({
+        title: rateChange > 0 ? 'Improving Trend' : 'Declining Trend',
+        description: rateChange > 0
+          ? `Completion rate improved by ${Math.abs(rateChange).toFixed(1)}% compared to the previous period.`
+          : `Completion rate decreased by ${Math.abs(rateChange).toFixed(1)}% compared to the previous period. Consider reviewing workload distribution.`,
+        icon: rateChange > 0 ? 'trending_up' : 'trending_down',
+        color: rateChange > 0 ? '#10b981' : '#ef4444'
+      });
+    }
+
+    if (teamPerformance?.team_size > 0) {
+      insights.push({
+        title: 'Team Overview',
+        description: `Your team of ${teamPerformance.team_size} members has an average productivity of ${Math.round(avgRate)}%. ${
+          teamPerformance.most_productive_member ? `Top performer: ${teamPerformance.most_productive_member.user_name}.` : ''
+        }`,
         icon: 'group',
         color: '#667eea'
-      }
-    ];
+      });
+    }
+
+    if (userProductivity?.overdue_tasks > 0) {
+      insights.push({
+        title: 'Overdue Tasks',
+        description: `You have ${userProductivity.overdue_tasks} overdue task${userProductivity.overdue_tasks > 1 ? 's' : ''}. Prioritize these to stay on track.`,
+        icon: 'schedule',
+        color: '#ef4444'
+      });
+    }
+
+    this.insights = insights;
+  }
+
+  onPeriodChange(): void {
+    this.loadAnalyticsData();
   }
 
   getBarColor(value: number): string {
