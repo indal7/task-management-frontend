@@ -517,12 +517,13 @@ export class CalendarComponent implements OnInit, OnDestroy {
   }
 
   getTaskPriorityColor(priority: string): string {
-    const colors = {
+    const colors: Record<string, string> = {
+      'CRITICAL': '#b71c1c',
       'HIGH': '#f44336',
       'MEDIUM': '#ff9800',
       'LOW': '#4caf50'
     };
-    return colors[priority as keyof typeof colors] || '#757575';
+    return colors[priority] || '#757575';
   }
 
   getTaskStatusColor(status: string): string {

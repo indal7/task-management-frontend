@@ -2,28 +2,35 @@
 <div class="settings-container">
   <!-- Header -->
   <div class="settings-header">
-    <h1>
-      <mat-icon>settings</mat-icon>
-      Settings
-    </h1>
-    <p>Customize your experience and preferences</p>
+    <div class="header-content">
+      <div class="header-text">
+        <h1>
+          <mat-icon>settings</mat-icon>
+          Settings
+        </h1>
+        <p>Customize your workspace and preferences</p>
+      </div>
+    </div>
   </div>
 
   <!-- Settings Tabs -->
   <mat-tab-group [(selectedIndex)]="selectedTabIndex" animationDuration="300ms" class="settings-tabs">
     
     <!-- General Settings -->
-    <mat-tab label="General">
+    <mat-tab>
+      <ng-template mat-tab-label>
+        <mat-icon class="tab-icon">tune</mat-icon>
+        General
+      </ng-template>
       <div class="tab-content">
         <form [formGroup]="generalForm" (ngSubmit)="saveGeneralSettings()">
           
           <!-- Appearance Section -->
           <mat-card class="settings-section">
             <mat-card-header>
-              <mat-card-title>
-                <mat-icon>palette</mat-icon>
-                Appearance
-              </mat-card-title>
+              <div class="section-icon-wrap accent-purple"><mat-icon>palette</mat-icon></div>
+              <mat-card-title>Appearance</mat-card-title>
+              <mat-card-subtitle>Customize the look and feel of your workspace</mat-card-subtitle>
             </mat-card-header>
             <mat-card-content>
               <div class="settings-row">
@@ -63,16 +70,37 @@
                   </mat-select>
                 </mat-form-field>
               </div>
+
+              <div class="settings-row">
+                <mat-form-field appearance="outline">
+                  <mat-label>Font Size</mat-label>
+                  <mat-select formControlName="fontSize">
+                    <mat-option value="normal">Normal (14px)</mat-option>
+                    <mat-option value="large">Large (16px)</mat-option>
+                    <mat-option value="xlarge">Extra Large (18px)</mat-option>
+                  </mat-select>
+                  <mat-hint>Affects text size across the application</mat-hint>
+                </mat-form-field>
+
+                <mat-form-field appearance="outline">
+                  <mat-label>Layout Density</mat-label>
+                  <mat-select formControlName="density">
+                    <mat-option value="comfortable">Comfortable</mat-option>
+                    <mat-option value="standard">Standard</mat-option>
+                    <mat-option value="compact">Compact</mat-option>
+                  </mat-select>
+                  <mat-hint>Controls spacing and element sizes</mat-hint>
+                </mat-form-field>
+              </div>
             </mat-card-content>
           </mat-card>
 
           <!-- Localization Section -->
           <mat-card class="settings-section">
             <mat-card-header>
-              <mat-card-title>
-                <mat-icon>language</mat-icon>
-                Localization
-              </mat-card-title>
+              <div class="section-icon-wrap accent-blue"><mat-icon>language</mat-icon></div>
+              <mat-card-title>Localization</mat-card-title>
+              <mat-card-subtitle>Set your language, timezone and date preferences</mat-card-subtitle>
             </mat-card-header>
             <mat-card-content>
               <div class="settings-row">
@@ -80,10 +108,10 @@
                   <mat-label>Language</mat-label>
                   <mat-select formControlName="language">
                     <mat-option value="en">English</mat-option>
-                    <mat-option value="es">Español</mat-option>
-                    <mat-option value="fr">Français</mat-option>
+                    <mat-option value="es">Espanol</mat-option>
+                    <mat-option value="fr">Francais</mat-option>
                     <mat-option value="de">Deutsch</mat-option>
-                    <mat-option value="hi">हिन्दी</mat-option>
+                    <mat-option value="hi">Hindi</mat-option>
                   </mat-select>
                 </mat-form-field>
 
@@ -101,9 +129,9 @@
                 <mat-form-field appearance="outline">
                   <mat-label>Date Format</mat-label>
                   <mat-select formControlName="dateFormat">
-                    <mat-option value="MM/DD/YYYY">MM/DD/YYYY</mat-option>
-                    <mat-option value="DD/MM/YYYY">DD/MM/YYYY</mat-option>
-                    <mat-option value="YYYY-MM-DD">YYYY-MM-DD</mat-option>
+                    <mat-option value="MM/DD/YYYY">MM/DD/YYYY (US)</mat-option>
+                    <mat-option value="DD/MM/YYYY">DD/MM/YYYY (EU)</mat-option>
+                    <mat-option value="YYYY-MM-DD">YYYY-MM-DD (ISO)</mat-option>
                     <mat-option value="DD MMM YYYY">DD MMM YYYY</mat-option>
                   </mat-select>
                 </mat-form-field>
@@ -132,7 +160,100 @@
           <div class="form-actions">
             <button mat-raised-button color="primary" type="submit" [disabled]="generalForm.invalid || isGeneralLoading">
               <mat-spinner diameter="20" *ngIf="isGeneralLoading"></mat-spinner>
-              <span *ngIf="!isGeneralLoading">Save Changes</span>
+              <mat-icon *ngIf="!isGeneralLoading">save</mat-icon>
+              <span>{{ isGeneralLoading ? 'Saving...' : 'Save Changes' }}</span>
+            </button>
+          </div>
+        </form>
+      </div>
+    </mat-tab>
+
+    <!-- Work Hours Tab -->
+    <mat-tab>
+      <ng-template mat-tab-label>
+        <mat-icon class="tab-icon">work_history</mat-icon>
+        Work Hours
+      </ng-template>
+      <div class="tab-content">
+        <form [formGroup]="workHoursForm" (ngSubmit)="saveWorkHoursSettings()">
+
+          <mat-card class="settings-section">
+            <mat-card-header>
+              <div class="section-icon-wrap accent-green"><mat-icon>schedule</mat-icon></div>
+              <mat-card-title>Working Hours</mat-card-title>
+              <mat-card-subtitle>Define your standard work schedule for productivity tracking</mat-card-subtitle>
+            </mat-card-header>
+            <mat-card-content>
+
+              <div class="toggle-row">
+                <mat-slide-toggle formControlName="enabled">
+                  <div class="toggle-content">
+                    <mat-icon>access_time</mat-icon>
+                    <div>
+                      <strong>Enable Work Hours Tracking</strong>
+                      <p>Track time based on your defined work schedule</p>
+                    </div>
+                  </div>
+                </mat-slide-toggle>
+              </div>
+
+              <div class="settings-row" [class.dimmed]="!workHoursForm.get('enabled')?.value">
+                <mat-form-field appearance="outline">
+                  <mat-label>Work Start Time</mat-label>
+                  <input matInput type="time" formControlName="startTime">
+                  <mat-icon matPrefix>login</mat-icon>
+                  <mat-hint>When your workday begins</mat-hint>
+                </mat-form-field>
+
+                <mat-form-field appearance="outline">
+                  <mat-label>Work End Time</mat-label>
+                  <input matInput type="time" formControlName="endTime">
+                  <mat-icon matPrefix>logout</mat-icon>
+                  <mat-hint>When your workday ends</mat-hint>
+                </mat-form-field>
+
+                <mat-form-field appearance="outline">
+                  <mat-label>Break Duration</mat-label>
+                  <mat-select formControlName="breakDuration">
+                    <mat-option [value]="0">No break</mat-option>
+                    <mat-option [value]="30">30 minutes</mat-option>
+                    <mat-option [value]="45">45 minutes</mat-option>
+                    <mat-option [value]="60">1 hour</mat-option>
+                    <mat-option [value]="90">1.5 hours</mat-option>
+                  </mat-select>
+                  <mat-hint>Total break time per day</mat-hint>
+                </mat-form-field>
+              </div>
+
+              <!-- Work Days -->
+              <div class="work-days-section" [class.dimmed]="!workHoursForm.get('enabled')?.value">
+                <h4 class="subsection-label">
+                  <mat-icon>calendar_view_week</mat-icon>
+                  Work Days
+                </h4>
+                <div class="work-days-grid">
+                  <div 
+                    *ngFor="let day of workDayOptions"
+                    class="day-toggle"
+                    [class.selected]="day.selected"
+                    [class.weekend]="day.value === 'saturday' || day.value === 'sunday'"
+                    (click)="day.selected = !day.selected">
+                    {{ day.label }}
+                  </div>
+                </div>
+                <p class="days-summary">
+                  <mat-icon>info_outline</mat-icon>
+                  {{ selectedWorkDaysCount }} work days &bull; {{ workHoursPerDay }}h/day &bull; <strong>{{ weeklyWorkHours }}h/week</strong>
+                </p>
+              </div>
+            </mat-card-content>
+          </mat-card>
+
+          <div class="form-actions">
+            <button mat-raised-button color="primary" type="submit" [disabled]="workHoursForm.invalid || isWorkHoursLoading">
+              <mat-spinner diameter="20" *ngIf="isWorkHoursLoading"></mat-spinner>
+              <mat-icon *ngIf="!isWorkHoursLoading">save</mat-icon>
+              <span>{{ isWorkHoursLoading ? 'Saving...' : 'Save Work Hours' }}</span>
             </button>
           </div>
         </form>
@@ -140,19 +261,19 @@
     </mat-tab>
 
     <!-- Notifications -->
-    <mat-tab label="Notifications">
+    <mat-tab>
+      <ng-template mat-tab-label>
+        <mat-icon class="tab-icon">notifications</mat-icon>
+        Notifications
+      </ng-template>
       <div class="tab-content">
         <form [formGroup]="notificationsForm" (ngSubmit)="saveNotificationSettings()">
           
           <mat-card class="settings-section">
             <mat-card-header>
-              <mat-card-title>
-                <mat-icon>notifications</mat-icon>
-                Notification Preferences
-              </mat-card-title>
-              <mat-card-subtitle>
-                Choose how you want to be notified about updates
-              </mat-card-subtitle>
+              <div class="section-icon-wrap accent-orange"><mat-icon>notifications_active</mat-icon></div>
+              <mat-card-title>Notification Preferences</mat-card-title>
+              <mat-card-subtitle>Choose how you want to be notified about updates</mat-card-subtitle>
             </mat-card-header>
             <mat-card-content>
               
@@ -182,7 +303,7 @@
 
               <!-- Task & Project Notifications -->
               <div class="notification-group">
-                <h3>Task & Project Updates</h3>
+                <h3>Task and Project Updates</h3>
                 <mat-slide-toggle formControlName="taskReminders">
                   <div class="toggle-content">
                     <mat-icon>alarm</mat-icon>
@@ -222,6 +343,15 @@
                     </div>
                   </div>
                 </mat-slide-toggle>
+
+                <div class="inline-field">
+                  <mat-form-field appearance="outline" class="reminder-field">
+                    <mat-label>Remind me before deadline</mat-label>
+                    <mat-select formControlName="reminderBefore">
+                      <mat-option *ngFor="let opt of reminderOptions" [value]="opt.value">{{ opt.label }}</mat-option>
+                    </mat-select>
+                  </mat-form-field>
+                </div>
               </div>
 
               <!-- Digest Notifications -->
@@ -232,7 +362,7 @@
                     <mat-icon>today</mat-icon>
                     <div>
                       <strong>Daily Digest</strong>
-                      <p>Summary of your daily activities</p>
+                      <p>Summary of your daily activities each morning</p>
                     </div>
                   </div>
                 </mat-slide-toggle>
@@ -242,10 +372,37 @@
                     <mat-icon>date_range</mat-icon>
                     <div>
                       <strong>Weekly Report</strong>
-                      <p>Weekly productivity summary</p>
+                      <p>Weekly productivity summary every Monday</p>
                     </div>
                   </div>
                 </mat-slide-toggle>
+              </div>
+
+              <!-- Quiet Hours -->
+              <div class="notification-group quiet-hours-group">
+                <h3>Do Not Disturb</h3>
+                <mat-slide-toggle formControlName="quietHoursEnabled">
+                  <div class="toggle-content">
+                    <mat-icon>bedtime</mat-icon>
+                    <div>
+                      <strong>Quiet Hours</strong>
+                      <p>Pause notifications during off-hours to maintain work-life balance</p>
+                    </div>
+                  </div>
+                </mat-slide-toggle>
+
+                <div class="settings-row quiet-times" [class.dimmed]="!notificationsForm.get('quietHoursEnabled')?.value">
+                  <mat-form-field appearance="outline">
+                    <mat-label>Quiet Hours Start</mat-label>
+                    <input matInput type="time" formControlName="quietHoursStart">
+                    <mat-icon matPrefix>bedtime</mat-icon>
+                  </mat-form-field>
+                  <mat-form-field appearance="outline">
+                    <mat-label>Quiet Hours End</mat-label>
+                    <input matInput type="time" formControlName="quietHoursEnd">
+                    <mat-icon matPrefix>wb_sunny</mat-icon>
+                  </mat-form-field>
+                </div>
               </div>
 
             </mat-card-content>
@@ -254,7 +411,8 @@
           <div class="form-actions">
             <button mat-raised-button color="primary" type="submit" [disabled]="notificationsForm.invalid || isNotificationsLoading">
               <mat-spinner diameter="20" *ngIf="isNotificationsLoading"></mat-spinner>
-              <span *ngIf="!isNotificationsLoading">Save Notification Settings</span>
+              <mat-icon *ngIf="!isNotificationsLoading">save</mat-icon>
+              <span>{{ isNotificationsLoading ? 'Saving...' : 'Save Notification Settings' }}</span>
             </button>
           </div>
         </form>
@@ -262,19 +420,19 @@
     </mat-tab>
 
     <!-- Privacy -->
-    <mat-tab label="Privacy">
+    <mat-tab>
+      <ng-template mat-tab-label>
+        <mat-icon class="tab-icon">privacy_tip</mat-icon>
+        Privacy
+      </ng-template>
       <div class="tab-content">
         <form [formGroup]="privacyForm" (ngSubmit)="savePrivacySettings()">
           
           <mat-card class="settings-section">
             <mat-card-header>
-              <mat-card-title>
-                <mat-icon>privacy_tip</mat-icon>
-                Privacy & Data
-              </mat-card-title>
-              <mat-card-subtitle>
-                Control your privacy and data sharing preferences
-              </mat-card-subtitle>
+              <div class="section-icon-wrap accent-teal"><mat-icon>shield</mat-icon></div>
+              <mat-card-title>Privacy and Data</mat-card-title>
+              <mat-card-subtitle>Control your privacy and data sharing preferences</mat-card-subtitle>
             </mat-card-header>
             <mat-card-content>
               
@@ -286,7 +444,7 @@
                       <mat-icon>public</mat-icon>
                       <div>
                         <strong>Public</strong>
-                        <p>Your profile is visible to everyone</p>
+                        <p>Your profile is visible to everyone in the organization</p>
                       </div>
                     </div>
                   </mat-radio-button>
@@ -295,7 +453,7 @@
                       <mat-icon>group</mat-icon>
                       <div>
                         <strong>Team Only</strong>
-                        <p>Only team members can see your profile</p>
+                        <p>Only your team members can see your profile</p>
                       </div>
                     </div>
                   </mat-radio-button>
@@ -304,7 +462,7 @@
                       <mat-icon>lock</mat-icon>
                       <div>
                         <strong>Private</strong>
-                        <p>Your profile is private</p>
+                        <p>Only you can see your full profile</p>
                       </div>
                     </div>
                   </mat-radio-button>
@@ -312,13 +470,13 @@
               </div>
 
               <div class="privacy-group">
-                <h3>Data & Analytics</h3>
+                <h3>Data and Analytics</h3>
                 <mat-slide-toggle formControlName="activityTracking">
                   <div class="toggle-content">
                     <mat-icon>track_changes</mat-icon>
                     <div>
                       <strong>Activity Tracking</strong>
-                      <p>Allow tracking of your app usage for insights</p>
+                      <p>Allow tracking of your app usage for productivity insights</p>
                     </div>
                   </div>
                 </mat-slide-toggle>
@@ -348,7 +506,7 @@
                     <mat-icon>campaign</mat-icon>
                     <div>
                       <strong>Marketing Emails</strong>
-                      <p>Receive promotional emails and updates</p>
+                      <p>Receive promotional emails and product updates</p>
                     </div>
                   </div>
                 </mat-slide-toggle>
@@ -360,7 +518,8 @@
           <div class="form-actions">
             <button mat-raised-button color="primary" type="submit" [disabled]="privacyForm.invalid || isPrivacyLoading">
               <mat-spinner diameter="20" *ngIf="isPrivacyLoading"></mat-spinner>
-              <span *ngIf="!isPrivacyLoading">Save Privacy Settings</span>
+              <mat-icon *ngIf="!isPrivacyLoading">save</mat-icon>
+              <span>{{ isPrivacyLoading ? 'Saving...' : 'Save Privacy Settings' }}</span>
             </button>
           </div>
         </form>
@@ -368,19 +527,19 @@
     </mat-tab>
 
     <!-- Security -->
-    <mat-tab label="Security">
+    <mat-tab>
+      <ng-template mat-tab-label>
+        <mat-icon class="tab-icon">security</mat-icon>
+        Security
+      </ng-template>
       <div class="tab-content">
         <form [formGroup]="securityForm" (ngSubmit)="saveSecuritySettings()">
           
           <mat-card class="settings-section">
             <mat-card-header>
-              <mat-card-title>
-                <mat-icon>security</mat-icon>
-                Security Settings
-              </mat-card-title>
-              <mat-card-subtitle>
-                Manage your account security and access
-              </mat-card-subtitle>
+              <div class="section-icon-wrap accent-red"><mat-icon>lock</mat-icon></div>
+              <mat-card-title>Security Settings</mat-card-title>
+              <mat-card-subtitle>Manage your account security and access</mat-card-subtitle>
             </mat-card-header>
             <mat-card-content>
               
@@ -405,7 +564,7 @@
                       <mat-option [value]="60">1 hour</mat-option>
                       <mat-option [value]="240">4 hours</mat-option>
                       <mat-option [value]="480">8 hours</mat-option>
-                      <mat-option [value]="0">Never</mat-option>
+                      <mat-option [value]="0">Never (not recommended)</mat-option>
                     </mat-select>
                     <mat-hint>Automatically log out after inactivity</mat-hint>
                   </mat-form-field>
@@ -419,7 +578,7 @@
                     <mat-icon>login</mat-icon>
                     <div>
                       <strong>Login Notifications</strong>
-                      <p>Get notified of new login attempts</p>
+                      <p>Get notified of new login attempts from unfamiliar devices</p>
                     </div>
                   </div>
                 </mat-slide-toggle>
@@ -429,7 +588,7 @@
                     <mat-icon>api</mat-icon>
                     <div>
                       <strong>API Access</strong>
-                      <p>Allow third-party applications to access your data</p>
+                      <p>Allow third-party applications to access your data via API</p>
                     </div>
                   </div>
                 </mat-slide-toggle>
@@ -463,7 +622,8 @@
           <div class="form-actions">
             <button mat-raised-button color="primary" type="submit" [disabled]="securityForm.invalid || isSecurityLoading">
               <mat-spinner diameter="20" *ngIf="isSecurityLoading"></mat-spinner>
-              <span *ngIf="!isSecurityLoading">Save Security Settings</span>
+              <mat-icon *ngIf="!isSecurityLoading">save</mat-icon>
+              <span>{{ isSecurityLoading ? 'Saving...' : 'Save Security Settings' }}</span>
             </button>
           </div>
         </form>
@@ -473,7 +633,7 @@
   </mat-tab-group>
 
   <!-- Success Message -->
-  <div class="success-message" *ngIf="successMessage">
+  <div class="success-message" *ngIf="successMessage" role="alert" aria-live="polite">
     <mat-icon>check_circle</mat-icon>
     {{ successMessage }}
   </div>

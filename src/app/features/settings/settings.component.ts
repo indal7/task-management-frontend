@@ -14,6 +14,16 @@ interface AppSettings {
   timeFormat: '12h' | '24h';
   weekStartDay: 'monday' | 'sunday';
   defaultView: 'list' | 'grid' | 'kanban';
+  fontSize: 'normal' | 'large' | 'xlarge';
+  density: 'comfortable' | 'compact' | 'standard';
+}
+
+interface WorkHoursSettings {
+  enabled: boolean;
+  startTime: string;
+  endTime: string;
+  workDays: string[];
+  breakDuration: number;
 }
 
 interface NotificationSettings {
@@ -25,6 +35,10 @@ interface NotificationSettings {
   teamMentions: boolean;
   dailyDigest: boolean;
   weeklyReport: boolean;
+  quietHoursEnabled: boolean;
+  quietHoursStart: string;
+  quietHoursEnd: string;
+  reminderBefore: number;
 }
 
 interface PrivacySettings {
@@ -52,6 +66,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
 
   // Forms
   generalForm: FormGroup;
+  workHoursForm: FormGroup;
   notificationsForm: FormGroup;
   privacyForm: FormGroup;
   securityForm: FormGroup;
@@ -59,10 +74,22 @@ export class SettingsComponent implements OnInit, OnDestroy {
   // UI State
   selectedTabIndex = 0;
   isGeneralLoading = false;
+  isWorkHoursLoading = false;
   isNotificationsLoading = false;
   isPrivacyLoading = false;
   isSecurityLoading = false;
   successMessage: string | null = null;
+
+  // Work days checkboxes state
+  workDayOptions = [
+    { value: 'monday', label: 'Mon', selected: true },
+    { value: 'tuesday', label: 'Tue', selected: true },
+    { value: 'wednesday', label: 'Wed', selected: true },
+    { value: 'thursday', label: 'Thu', selected: true },
+    { value: 'friday', label: 'Fri', selected: true },
+    { value: 'saturday', label: 'Sat', selected: false },
+    { value: 'sunday', label: 'Sun', selected: false }
+  ];
 
   // Options
   timezoneOptions = [
@@ -79,11 +106,20 @@ export class SettingsComponent implements OnInit, OnDestroy {
     { value: 'Australia/Sydney', label: 'Australian Eastern Time (UTC+10)' }
   ];
 
+  reminderOptions = [
+    { value: 15, label: '15 minutes before' },
+    { value: 30, label: '30 minutes before' },
+    { value: 60, label: '1 hour before' },
+    { value: 120, label: '2 hours before' },
+    { value: 1440, label: '1 day before' }
+  ];
+
   constructor(
     private fb: FormBuilder,
     private authService: AuthService
   ) {
     this.generalForm = this.createGeneralForm();
+    this.workHoursForm = this.createWorkHoursForm();
     this.notificationsForm = this.createNotificationsForm();
     this.privacyForm = this.createPrivacyForm();
     this.securityForm = this.createSecurityForm();
@@ -106,7 +142,18 @@ export class SettingsComponent implements OnInit, OnDestroy {
       dateFormat: ['MM/DD/YYYY', Validators.required],
       timeFormat: ['12h', Validators.required],
       weekStartDay: ['sunday', Validators.required],
-      defaultView: ['list', Validators.required]
+      defaultView: ['list', Validators.required],
+      fontSize: ['normal', Validators.required],
+      density: ['comfortable', Validators.required]
+    });
+  }
+
+  private createWorkHoursForm(): FormGroup {
+    return this.fb.group({
+      enabled: [true],
+      startTime: ['09:00', Validators.required],
+      endTime: ['18:00', Validators.required],
+      breakDuration: [60, Validators.required]
     });
   }
 
@@ -119,7 +166,11 @@ export class SettingsComponent implements OnInit, OnDestroy {
       deadlineAlerts: [true],
       teamMentions: [true],
       dailyDigest: [false],
-      weeklyReport: [true]
+      weeklyReport: [true],
+      quietHoursEnabled: [false],
+      quietHoursStart: ['22:00'],
+      quietHoursEnd: ['08:00'],
+      reminderBefore: [30]
     });
   }
 
@@ -150,6 +201,19 @@ export class SettingsComponent implements OnInit, OnDestroy {
       this.generalForm.patchValue(savedSettings.general);
       // Apply theme immediately on load
       this.applyThemeChanges(savedSettings.general.theme);
+      // Apply font size on load
+      if (savedSettings.general.fontSize) {
+        this.applyFontSize(savedSettings.general.fontSize);
+      }
+    }
+
+    if (savedSettings.workHours) {
+      this.workHoursForm.patchValue(savedSettings.workHours);
+      if (savedSettings.workHours.workDays) {
+        this.workDayOptions.forEach(day => {
+          day.selected = savedSettings.workHours.workDays.includes(day.value);
+        });
+      }
     }
     
     if (savedSettings.notifications) {
@@ -174,7 +238,16 @@ export class SettingsComponent implements OnInit, OnDestroy {
         dateFormat: 'MM/DD/YYYY',
         timeFormat: '12h',
         weekStartDay: 'sunday',
-        defaultView: 'list'
+        defaultView: 'list',
+        fontSize: 'normal',
+        density: 'comfortable'
+      },
+      workHours: {
+        enabled: true,
+        startTime: '09:00',
+        endTime: '18:00',
+        workDays: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'],
+        breakDuration: 60
       },
       notifications: {
         emailNotifications: true,
@@ -184,7 +257,11 @@ export class SettingsComponent implements OnInit, OnDestroy {
         deadlineAlerts: true,
         teamMentions: true,
         dailyDigest: false,
-        weeklyReport: true
+        weeklyReport: true,
+        quietHoursEnabled: false,
+        quietHoursStart: '22:00',
+        quietHoursEnd: '08:00',
+        reminderBefore: 30
       },
       privacy: {
         profileVisibility: 'team',
@@ -230,8 +307,26 @@ export class SettingsComponent implements OnInit, OnDestroy {
     setTimeout(() => {
       this.saveSettingsToStorage({ general: formValue });
       this.applyThemeChanges(formValue.theme);
+      this.applyFontSize(formValue.fontSize);
       this.showSuccessMessage('General settings saved successfully!');
       this.isGeneralLoading = false;
+    }, 1000);
+  }
+
+  saveWorkHoursSettings(): void {
+    if (this.workHoursForm.invalid) return;
+
+    this.isWorkHoursLoading = true;
+    const formValue = this.workHoursForm.value;
+    const selectedDays = this.workDayOptions
+      .filter(d => d.selected)
+      .map(d => d.value);
+
+    // Simulate API call
+    setTimeout(() => {
+      this.saveSettingsToStorage({ workHours: { ...formValue, workDays: selectedDays } });
+      this.showSuccessMessage('Work hours saved successfully!');
+      this.isWorkHoursLoading = false;
     }, 1000);
   }
 
@@ -297,11 +392,37 @@ export class SettingsComponent implements OnInit, OnDestroy {
     }
   }
 
+  private applyFontSize(fontSize: string): void {
+    const root = document.documentElement;
+    root.classList.remove('font-normal', 'font-large', 'font-xlarge');
+    root.classList.add(`font-${fontSize}`);
+  }
+
   private showSuccessMessage(message: string): void {
     this.successMessage = message;
     setTimeout(() => {
       this.successMessage = null;
     }, 3000);
+  }
+
+  // Computed helpers
+  get selectedWorkDaysCount(): number {
+    return this.workDayOptions.filter(d => d.selected).length;
+  }
+
+  get workHoursPerDay(): number {
+    const start = this.workHoursForm.get('startTime')?.value || '09:00';
+    const end = this.workHoursForm.get('endTime')?.value || '18:00';
+    const breakMin = this.workHoursForm.get('breakDuration')?.value || 60;
+
+    const [sh, sm] = start.split(':').map(Number);
+    const [eh, em] = end.split(':').map(Number);
+    const totalMin = (eh * 60 + em) - (sh * 60 + sm) - breakMin;
+    return Math.max(0, Math.round(totalMin / 60 * 10) / 10);
+  }
+
+  get weeklyWorkHours(): number {
+    return Math.round(this.workHoursPerDay * this.selectedWorkDaysCount * 10) / 10;
   }
 
   // Security Actions
@@ -339,3 +460,4 @@ export class SettingsComponent implements OnInit, OnDestroy {
     }
   }
 }
+
