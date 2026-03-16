@@ -40,6 +40,7 @@ export class SprintManagementComponent implements OnInit, OnDestroy {
   filteredBacklogTasks: SprintTask[] = [];
   burndownData: BurndownData[] = [];
   currentUser: User | null = null;
+  availableProjects: Project[] = [];
 
   // UI State
   isLoading = false;
@@ -63,6 +64,10 @@ export class SprintManagementComponent implements OnInit, OnDestroy {
     { status: 'TESTING', title: 'Testing', limit: 2 },
     { status: 'DONE', title: 'Done', limit: null }
   ];
+
+  get sprintColumnIds(): string[] {
+    return this.sprintColumns.map(c => c.status);
+  }
 
   constructor(
     private route: ActivatedRoute,
@@ -90,6 +95,8 @@ export class SprintManagementComponent implements OnInit, OnDestroy {
       const projectId = params['projectId'];
       if (projectId) {
         this.loadProjectData(parseInt(projectId));
+      } else {
+        this.loadAvailableProjects();
       }
     });
   }
@@ -107,6 +114,23 @@ export class SprintManagementComponent implements OnInit, OnDestroy {
       end_date: [''],
       goal: ['']
     });
+  }
+
+  private loadAvailableProjects(): void {
+    this.projectService.getProjects().pipe(
+      takeUntil(this.destroy$)
+    ).subscribe({
+      next: (response) => {
+        this.availableProjects = (response as any).data || (Array.isArray(response) ? response : []);
+      },
+      error: (error) => {
+        console.error('Failed to load projects:', error);
+      }
+    });
+  }
+
+  onProjectSelect(projectId: number): void {
+    this.router.navigate(['/sprints', projectId]);
   }
 
   private loadProjectData(projectId: number): void {
@@ -140,7 +164,7 @@ export class SprintManagementComponent implements OnInit, OnDestroy {
     tasks.forEach(task => {
       const sprintTask: SprintTask = {
         ...task,
-        story_points: (task as any).story_points || Math.floor(Math.random() * 8) + 1,
+        story_points: (task as any).story_points || 0,
         sprint_id: (task as any).sprint_id || null,
         in_sprint: !!(task as any).sprint_id
       };

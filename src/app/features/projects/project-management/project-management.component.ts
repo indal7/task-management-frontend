@@ -117,7 +117,8 @@ export class ProjectManagementComponent implements OnInit, OnDestroy {
       description: ['', [Validators.required]],
       start_date: ['', [Validators.required]],
       end_date: [''],
-      status: ['PLANNING', [Validators.required]]
+      status: ['PLANNING', [Validators.required]],
+      budget: [null, [Validators.min(0)]]
     });
   }
 
@@ -159,14 +160,14 @@ export class ProjectManagementComponent implements OnInit, OnDestroy {
   }
 
   private enrichProjectWithStats(project: Project): ProjectWithStats {
-    // Calculate project statistics (mock data - in real app, get from API)
-    const totalTasks = Math.floor(Math.random() * 50) + 10;
-    const completedTasks = Math.floor(totalTasks * (Math.random() * 0.8));
-    const inProgressTasks = Math.floor((totalTasks - completedTasks) * 0.6);
-    const pendingTasks = totalTasks - completedTasks - inProgressTasks;
-    
-    const progress = Math.floor((completedTasks / totalTasks) * 100);
-    
+    // Use real data from project model fields
+    const totalTasks = project.tasks_count || 0;
+    const completedTasks = project.completed_tasks_count || 0;
+    const pendingTasks = Math.max(0, totalTasks - completedTasks);
+    const inProgressTasks = 0; // Not separately tracked in project model
+
+    const progress = totalTasks > 0 ? Math.floor((completedTasks / totalTasks) * 100) : 0;
+
     // Calculate deadline info
     const endDate = project.end_date ? new Date(project.end_date) : null;
     const now = new Date();
@@ -182,9 +183,9 @@ export class ProjectManagementComponent implements OnInit, OnDestroy {
         pending: pendingTasks,
         in_progress: inProgressTasks
       },
-      teamMembers: [], // Fixed: Use empty array instead of undefined property
+      teamMembers: project.team_members || [],
       isOverdue,
-      daysUntilDeadline: daysUntilDeadline || undefined
+      daysUntilDeadline: daysUntilDeadline !== null ? daysUntilDeadline : undefined
     };
   }
 
@@ -303,7 +304,8 @@ export class ProjectManagementComponent implements OnInit, OnDestroy {
       description: project.description,
       start_date: this.formatDateForInput(project.start_date || ''),
       end_date: this.formatDateForInput(project.end_date || ''),
-      status: project.status
+      status: project.status,
+      budget: project.budget || null
     });
   }
 
@@ -387,7 +389,8 @@ export class ProjectManagementComponent implements OnInit, OnDestroy {
       description: formData.description,
       start_date: formData.start_date,
       end_date: formData.end_date || null,
-      status: formData.status
+      status: formData.status,
+      budget: formData.budget || null
     };
   }
 
