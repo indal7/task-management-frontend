@@ -1,4 +1,4 @@
-import { Component, Input, OnInit } from '@angular/core';
+import { Component, Input, OnInit, HostBinding } from '@angular/core';
 
 @Component({
   selector: 'app-loading',
@@ -16,8 +16,24 @@ export class LoadingComponent implements OnInit {
   // Generate particles for animation
   particles: number[] = [];
 
+  @HostBinding('class') get hostClasses(): string {
+    const classes = ['loading-host'];
+    if (this.overlay) classes.push('loading-overlay-host');
+    if (this.size !== 'normal') classes.push(`loading-${this.size}-host`);
+    return classes.join(' ');
+  }
+
   ngOnInit() {
     // Create 5 particles for the floating animation
     this.particles = Array.from({ length: 5 }, (_, i) => i);
+  }
+
+  get containerClasses(): Record<string, boolean> {
+    return {
+      'loading-container': true,
+      'overlay': this.overlay,
+      'small': this.size === 'small',
+      'large': this.size === 'large'
+    };
   }
 }

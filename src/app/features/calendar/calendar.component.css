@@ -820,3 +820,142 @@
     color: #fff;
   }
 }
+/* ===== CRITICAL PRIORITY INDICATOR ===== */
+.task-dot[style*="#b71c1c"],
+.task-dot.critical {
+  box-shadow: 0 0 0 2px #b71c1c40;
+  animation: criticalPulse 2s ease-in-out infinite;
+}
+
+@keyframes criticalPulse {
+  0%, 100% { box-shadow: 0 0 0 2px #b71c1c40; }
+  50% { box-shadow: 0 0 0 4px #b71c1c30; }
+}
+
+.calendar-day.has-overdue .day-number {
+  color: #c62828;
+  font-weight: 700;
+}
+
+/* ===== ENHANCED WEEK VIEW TIME GRID ===== */
+.week-view .current-hour-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: #1976d2;
+  z-index: 5;
+}
+
+.week-view .current-hour-line::before {
+  content: '';
+  position: absolute;
+  left: -5px;
+  top: -4px;
+  width: 10px;
+  height: 10px;
+  background: #1976d2;
+  border-radius: 50%;
+}
+
+/* ===== PRIORITY BADGE COLORS ===== */
+.priority-critical {
+  background-color: #b71c1c !important;
+  color: white !important;
+}
+.priority-high {
+  background-color: #f44336 !important;
+  color: white !important;
+}
+.priority-medium {
+  background-color: #ff9800 !important;
+  color: white !important;
+}
+.priority-low {
+  background-color: #4caf50 !important;
+  color: white !important;
+}
+
+/* ===== ENHANCED TASK CARD ===== */
+.week-task .task-title {
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.task-item:hover,
+.day-task-card:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+}
+
+/* ===== EMPTY STATE ===== */
+.no-tasks {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem 2rem;
+  text-align: center;
+  color: #9e9e9e;
+}
+
+.no-tasks mat-icon {
+  font-size: 56px;
+  width: 56px;
+  height: 56px;
+  margin-bottom: 1rem;
+  color: #bdbdbd;
+}
+
+.no-tasks h3 {
+  margin: 0 0 0.5rem;
+  color: #616161;
+  font-size: 1.1rem;
+}
+
+.no-tasks p {
+  margin: 0 0 1.5rem;
+  font-size: 0.9rem;
+  max-width: 260px;
+}
+
+/* ===== DARK THEME CLASS (toggled by body.dark-theme) ===== */
+body.dark-theme .calendar-header,
+body.dark-theme .calendar-content,
+body.dark-theme .day-details {
+  background: #1e1e1e !important;
+  color: #e0e0e0 !important;
+}
+
+body.dark-theme .day-header {
+  background: #2d2d2d !important;
+  color: #bdbdbd !important;
+  border-bottom-color: #444 !important;
+}
+
+body.dark-theme .calendar-day {
+  background: #1e1e1e !important;
+  color: #e0e0e0 !important;
+  border-color: #333 !important;
+}
+
+body.dark-theme .calendar-day.other-month {
+  background: #181818 !important;
+  color: #555 !important;
+}
+
+body.dark-theme .period-title {
+  color: #e0e0e0 !important;
+}
+
+body.dark-theme .time-slots {
+  background: #2d2d2d !important;
+}
+
+body.dark-theme .error-message {
+  background: #2d1b1b !important;
+  color: #ef9a9a !important;
+}
+

@@ -494,3 +494,83 @@ body {
     transition-duration: 0.01ms !important;
   }
 }
+// ============================================================
+// Font Size Scaling (applied via JS from settings)
+// ============================================================
+html.font-normal {
+  font-size: 14px;
+}
+html.font-large {
+  font-size: 16px;
+}
+html.font-xlarge {
+  font-size: 18px;
+}
+
+// ============================================================
+// Skeleton loader utility classes
+// ============================================================
+.skeleton {
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: skeletonWave 1.5s infinite;
+  border-radius: 4px;
+}
+
+@keyframes skeletonWave {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+.dark-theme .skeleton {
+  background: linear-gradient(90deg, #2a2a2a 25%, #333 50%, #2a2a2a 75%);
+  background-size: 200% 100%;
+  animation: skeletonWave 1.5s infinite;
+}
+
+// ============================================================
+// Accessibility: enhanced focus ring
+// ============================================================
+:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 3px;
+  border-radius: 2px;
+}
+
+// ============================================================
+// Corporate-grade scrollbar styling
+// ============================================================
+.dark-theme {
+  ::-webkit-scrollbar-track { background: #1e1e1e; }
+  ::-webkit-scrollbar-thumb { background: #444; border-radius: 4px; }
+  ::-webkit-scrollbar-thumb:hover { background: #555; }
+}
+
+// ============================================================
+// Priority color utilities (global, reusable)
+// ============================================================
+.priority-critical { background: #ffebee; color: #b71c1c; }
+.priority-high     { background: #fff3e0; color: #e64a19; }
+.priority-medium   { background: #fff8e1; color: #f9a825; }
+.priority-low      { background: #e8f5e8; color: #2e7d32; }
+
+.dark-theme {
+  .priority-critical { background: #4a0000; color: #ef9a9a; }
+  .priority-high     { background: #3e2000; color: #ffcc80; }
+  .priority-medium   { background: #3e3000; color: #fff176; }
+  .priority-low      { background: #003300; color: #a5d6a7; }
+}
+
+// ============================================================
+// Work-hours aware styling (highlight out-of-hours time slots)
+// ============================================================
+.time-slot.out-of-hours {
+  background: repeating-linear-gradient(
+    45deg,
+    transparent,
+    transparent 8px,
+    rgba(0,0,0,0.02) 8px,
+    rgba(0,0,0,0.02) 16px
+  );
+}
+
