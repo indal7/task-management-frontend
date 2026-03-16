@@ -1,10 +1,10 @@
 // src/app/features/time-tracking/time-tracking/time-tracking.component.ts
 import { Component, OnInit, OnDestroy } from '@angular/core';
-import { Subject, interval } from 'rxjs';
-import { takeUntil } from 'rxjs/operators';
+import { Subject, interval, forkJoin, of } from 'rxjs';
+import { takeUntil, catchError, switchMap, map } from 'rxjs/operators';
 import { AuthService } from '../../core/services/auth.service';
 import { TaskService } from '../../core/services/task.service';
-import { Task, User } from '../../core/models';
+import { Task, User, TimeLog } from '../../core/models';
 
 interface TimeEntry {
   id: number;
@@ -593,8 +593,7 @@ export class TimeTrackingComponent implements OnInit, OnDestroy {
   ) {}
 
   ngOnInit(): void {
-    this.loadAvailableTasks();
-    this.loadTimeLogs();
+    this.loadAvailableTasksAndTimeLogs();
     this.calculateWeeklyStats();
   }
 
@@ -603,6 +602,20 @@ export class TimeTrackingComponent implements OnInit, OnDestroy {
     this.destroy$.complete();
     this.timerSubscription$.next();
     this.timerSubscription$.complete();
+  }
+
+  loadAvailableTasksAndTimeLogs(): void {
+    this.taskService.getAllTasks()
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (tasks) => {
+          this.availableTasks = Array.isArray(tasks) ? tasks : [tasks];
+          this.loadTimeLogs();
+        },
+        error: (error) => {
+          console.error('Error loading tasks:', error);
+        }
+      });
   }
 
   loadAvailableTasks(): void {
@@ -620,82 +633,66 @@ export class TimeTrackingComponent implements OnInit, OnDestroy {
 
   loadTimeLogs(): void {
     this.isLoading = true;
-    
-    // Generate mock time logs
-    setTimeout(() => {
-      this.dailyTimeLogs = this.generateMockTimeLogs();
+    this.dailyTimeLogs = [];
+
+    // Fetch time logs for each available task that has time logs
+    const tasksWithLogs = this.availableTasks.filter(t => t.time_logs_count > 0);
+    if (tasksWithLogs.length === 0) {
       this.isLoading = false;
-    }, 500);
-  }
-
-  private generateMockTimeLogs(): DailyTimeLog[] {
-    const logs: DailyTimeLog[] = [];
-    const today = new Date();
-    
-    for (let i = 0; i < 7; i++) {
-      const date = new Date(today);
-      date.setDate(today.getDate() - i);
-      
-      const entries: TimeEntry[] = [];
-      const entryCount = Math.floor(Math.random() * 4) + 1;
-      
-      for (let j = 0; j < entryCount; j++) {
-        const startHour = 9 + Math.floor(Math.random() * 8);
-        const startTime = new Date(date);
-        startTime.setHours(startHour, Math.floor(Math.random() * 60));
-        
-        const duration = Math.floor(Math.random() * 120) + 30; // 30-150 minutes
-        const endTime = new Date(startTime.getTime() + duration * 60000);
-        
-        entries.push({
-          id: Date.now() + Math.random(),
-          taskId: this.availableTasks[Math.floor(Math.random() * this.availableTasks.length)]?.id || 1,
-          taskTitle: this.getRandomTaskTitle(),
-          projectName: this.getRandomProjectName(),
-          startTime,
-          endTime,
-          duration,
-          description: this.getRandomDescription(),
-          date: date.toISOString().split('T')[0],
-          isRunning: false
-        });
-      }
-      
-      const totalMinutes = entries.reduce((sum, entry) => sum + entry.duration, 0);
-      
-      logs.push({
-        date: date.toISOString().split('T')[0],
-        totalMinutes,
-        entries
-      });
+      this.calculateWeeklyStats();
+      return;
     }
-    
-    return logs;
-  }
 
-  private getRandomTaskTitle(): string {
-    const titles = [
-      'Fix login bug', 'Implement user dashboard', 'Write unit tests',
-      'Code review', 'Update documentation', 'Meeting with team',
-      'Research new technology', 'Optimize database queries'
-    ];
-    return titles[Math.floor(Math.random() * titles.length)];
-  }
+    const logRequests = tasksWithLogs.map(task =>
+      this.taskService.getTaskTimeLogs(task.id).pipe(
+        map(logs => ({ task, logs })),
+        catchError(() => of({ task, logs: [] as TimeLog[] }))
+      )
+    );
 
-  private getRandomProjectName(): string {
-    const projects = ['Website Redesign', 'Mobile App', 'API Development', 'Admin Panel'];
-    return projects[Math.floor(Math.random() * projects.length)];
-  }
+    forkJoin(logRequests)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (results) => {
+          const dailyMap: { [date: string]: DailyTimeLog } = {};
 
-  private getRandomDescription(): string {
-    const descriptions = [
-      'Working on frontend implementation',
-      'Debugging authentication issues',
-      'Planning sprint activities',
-      'Reviewing pull requests',
-      'Writing test cases'
-    ];
-    return Math.random() > 0.3 ? descriptions[Math.floor(Math.random() * descriptions.length)] : '';
+          for (const { task, logs } of results) {
+            for (const log of logs) {
+              const dateStr = log.logged_at || log.created_at || new Date().toISOString();
+              const date = dateStr.split('T')[0];
+              const durationMinutes = Math.round(log.hours_logged * 60);
+              const loggedAt = new Date(dateStr);
+
+              const entry: TimeEntry = {
+                id: log.id,
+                taskId: task.id,
+                taskTitle: task.title,
+                projectName: task.project?.name || 'Unknown Project',
+                startTime: loggedAt,
+                endTime: loggedAt,
+                duration: durationMinutes,
+                description: log.description || '',
+                date,
+                isRunning: false
+              };
+
+              if (!dailyMap[date]) {
+                dailyMap[date] = { date, totalMinutes: 0, entries: [] };
+              }
+              dailyMap[date].entries.push(entry);
+              dailyMap[date].totalMinutes += durationMinutes;
+            }
+          }
+
+          // Sort descending by date
+          this.dailyTimeLogs = Object.values(dailyMap).sort((a, b) => b.date.localeCompare(a.date));
+          this.isLoading = false;
+          this.calculateWeeklyStats();
+        },
+        error: () => {
+          this.isLoading = false;
+        }
+      });
   }
 
   calculateWeeklyStats(): void {
@@ -755,24 +752,40 @@ export class TimeTrackingComponent implements OnInit, OnDestroy {
     
     this.isTimerRunning = false;
     this.timerSubscription$.next();
-    
-    // Create time entry
-    const selectedTask = this.availableTasks.find(task => task.id === this.selectedTaskId);
-    if (selectedTask) {
-      const newEntry: TimeEntry = {
-        id: Date.now(),
-        taskId: this.selectedTaskId!,
-        taskTitle: selectedTask.title,
-        projectName: 'Current Project', // You might want to get this from task
-        startTime: this.timerStartTime,
-        endTime: new Date(),
-        duration: Math.floor(this.currentDuration / 60),
-        description: this.timerDescription,
-        date: new Date().toISOString().split('T')[0],
-        isRunning: false
-      };
-      
-      this.addTimeEntry(newEntry);
+
+    const durationSeconds = this.currentDuration;
+    const hoursLogged = Math.round((durationSeconds / 3600) * 100) / 100;
+
+    if (this.selectedTaskId && hoursLogged > 0) {
+      const selectedTask = this.availableTasks.find(task => task.id === this.selectedTaskId);
+      this.taskService.createTimeLog(this.selectedTaskId, {
+        hours_logged: hoursLogged,
+        description: this.timerDescription || undefined,
+        logged_at: new Date().toISOString()
+      }).subscribe({
+        next: (log) => {
+          if (selectedTask) {
+            const durationMinutes = Math.round(hoursLogged * 60);
+            const date = new Date().toISOString().split('T')[0];
+            const newEntry: TimeEntry = {
+              id: log.id,
+              taskId: this.selectedTaskId!,
+              taskTitle: selectedTask.title,
+              projectName: selectedTask.project?.name || 'Unknown Project',
+              startTime: this.timerStartTime!,
+              endTime: new Date(),
+              duration: durationMinutes,
+              description: this.timerDescription,
+              date,
+              isRunning: false
+            };
+            this.addTimeEntry(newEntry);
+          }
+        },
+        error: (err) => {
+          console.error('Failed to save time log:', err);
+        }
+      });
     }
     
     // Reset timer

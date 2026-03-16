@@ -2,6 +2,8 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { forkJoin, of } from 'rxjs';
+import { catchError } from 'rxjs/operators';
 import { 
   AnalyticsService, 
   TaskCompletionRate, 
@@ -10,6 +12,7 @@ import {
 } from '../../core/services/analytics.service';
 import { AuthService, UserListItem } from '../../core/services/auth.service';
 import { ProjectService } from '../../core/services/project.service';
+import { ProjectAnalytics } from '../../core/models';
 
 
 // Interface to match your HTML template expectations
@@ -134,24 +137,24 @@ export class ReportsComponent implements OnInit {
 private loadProjectReports() {
   this.loading = true;
 
-  this.projectService.getProjects().subscribe({
-    next: (data: any) => { // <--- Temporary fix: override type
-      const results = data.results || [];
+  forkJoin({
+    analytics: this.analyticsService.getProjectAnalytics().pipe(catchError(() => of([]))),
+    projects: this.projectService.getProjects().pipe(catchError(() => of({ success: true, message: '', data: [], pagination: { page: 1, per_page: 0, total: 0, pages: 0, has_prev: false, has_next: false, prev_num: null, next_num: null } })))
+  }).subscribe({
+    next: ({ analytics, projects }) => {
+      const projectStatusMap: { [id: number]: string } = {};
+      for (const p of projects.data) {
+        projectStatusMap[p.id] = p.status;
+      }
 
-      this.projectReports = results.map((p: any) => {
-        const totalTasks = p.tasks_count ?? 0;
-        const completedTasks = totalTasks > 0 ? Math.floor(totalTasks * 0.6) : 0;
-        const completionRate = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
-
-        return {
-          id: String(p.id),
-          name: p.name,
-          totalTasks,
-          completedTasks,
-          completionRate,
-          status: p.status ?? 'ACTIVE'
-        };
-      });
+      this.projectReports = (analytics as ProjectAnalytics[]).map((p: ProjectAnalytics) => ({
+        id: String(p.project_id),
+        name: p.project_name,
+        totalTasks: p.total_tasks,
+        completedTasks: p.completed_tasks,
+        completionRate: Math.round(p.completion_rate),
+        status: projectStatusMap[p.project_id] || 'ACTIVE'
+      }));
 
       this.loading = false;
     },
@@ -162,37 +165,6 @@ private loadProjectReports() {
 }
 
 
-
-  // private loadProjectReports() {
-  //   // Since your API doesn't have a projects summary endpoint, 
-  //   // we'll create mock data or you can implement this endpoint in your backend
-  //   this.projectReports = [
-  //     {
-  //       id: '1',
-  //       name: 'Website Redesign',
-  //       totalTasks: 24,
-  //       completedTasks: 16,
-  //       completionRate: 67,
-  //       status: 'ACTIVE'
-  //     },
-  //     {
-  //       id: '2',
-  //       name: 'Mobile App Development',
-  //       totalTasks: 35,
-  //       completedTasks: 15,
-  //       completionRate: 43,
-  //       status: 'ACTIVE'
-  //     },
-  //     {
-  //       id: '3',
-  //       name: 'Marketing Campaign Q2',
-  //       totalTasks: 18,
-  //       completedTasks: 18,
-  //       completionRate: 100,
-  //       status: 'COMPLETED'
-  //     }
-  //   ];
-  // }
 
   onPeriodChange() {
     this.loadReports();

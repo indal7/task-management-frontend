@@ -61,7 +61,7 @@ export class AnalyticsService {
         total_tasks: analytics.total_tasks,
         completed_tasks: analytics.completed_tasks,
         pending_tasks: analytics.total_tasks - analytics.completed_tasks,
-        in_progress_tasks: Math.floor((analytics.total_tasks - analytics.completed_tasks) * 0.6),
+        in_progress_tasks: 0,
         completion_rate: analytics.completion_rate,
         period: analytics.period,
         daily_completion: analytics.daily_completion
@@ -69,15 +69,7 @@ export class AnalyticsService {
       tap(() => this.loadingSubject.next(false)),
       catchError(error => {
         this.loadingSubject.next(false);
-        // Return mock data if API fails
-        return of({
-          total_tasks: 45,
-          completed_tasks: 32,
-          pending_tasks: 8,
-          in_progress_tasks: 5,
-          completion_rate: 71,
-          period: period
-        });
+        return throwError(() => error);
       })
     );
   }
@@ -97,21 +89,16 @@ export class AnalyticsService {
           };
         }
         return {
-          average_completion_time_days: 3.5,
-          overdue_tasks: 2,
-          productivity_score: 85,
-          total_hours_logged: 120
+          average_completion_time_days: 0,
+          overdue_tasks: 0,
+          productivity_score: 0,
+          total_hours_logged: 0
         };
       }),
       tap(() => this.loadingSubject.next(false)),
       catchError(error => {
         this.loadingSubject.next(false);
-        return of({
-          average_completion_time_days: 3.5,
-          overdue_tasks: 2,
-          productivity_score: 85,
-          total_hours_logged: 120
-        });
+        return throwError(() => error);
       })
     );
   }
@@ -129,11 +116,7 @@ export class AnalyticsService {
       tap(() => this.loadingSubject.next(false)),
       catchError(error => {
         this.loadingSubject.next(false);
-        return of({
-          status: 'mixed',
-          count: 45,
-          percentage: 100
-        });
+        return throwError(() => error);
       })
     );
   }

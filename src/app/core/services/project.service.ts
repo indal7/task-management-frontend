@@ -56,12 +56,27 @@ export class ProjectService {
       });
     }
 
-    return this.http.get<ApiResponse<PaginatedResponse<Project>>>(API_ENDPOINTS.PROJECTS.BASE, { params })
+    return this.http.get<ApiResponse<any>>(API_ENDPOINTS.PROJECTS.BASE, { params })
       .pipe(
         map(response => {
-          if (response.success && response.data) {
-            // console.log('Projects loaded:', response.data);
-            return response.data;
+          if (response.success && response.data !== undefined) {
+            const projects: Project[] = Array.isArray(response.data) ? response.data : [];
+            // Backend returns a plain array; wrap it in PaginatedResponse shape for consistency
+            return {
+              success: true,
+              message: response.message,
+              data: projects,
+              pagination: {
+                page: 1,
+                per_page: projects.length,
+                total: projects.length,
+                pages: 1,
+                has_prev: false,
+                has_next: false,
+                prev_num: null,
+                next_num: null
+              }
+            } as PaginatedResponse<Project>;
           } else {
             throw new Error(response.message || 'Failed to load projects');
           }
