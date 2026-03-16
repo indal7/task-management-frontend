@@ -10,6 +10,10 @@ const routes = [
   {
     path: '',
     component: SprintManagementComponent
+  },
+  {
+    path: ':projectId',
+    component: SprintManagementComponent
   }
 ];
 

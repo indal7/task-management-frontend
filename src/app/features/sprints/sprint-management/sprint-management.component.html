@@ -1,5 +1,5 @@
 
-<!-- <div class="sprint-management-container">
+<div class="sprint-management-container">
   
  
   <app-loading *ngIf="isLoading" message="Loading sprint data..."></app-loading>
@@ -19,9 +19,27 @@
   </div>
 
   <div class="sprint-content" *ngIf="!isLoading && !errorMessage">
-    
-   
-    <div class="sprint-header">
+
+    <!-- No Project Selected -->
+    <div class="no-project-selected" *ngIf="!project">
+      <mat-card class="select-project-card">
+        <mat-card-content>
+          <mat-icon>track_changes</mat-icon>
+          <h3>Select a Project</h3>
+          <p>Choose a project to manage its sprints.</p>
+          <mat-form-field appearance="outline" class="project-select-field">
+            <mat-label>Select Project</mat-label>
+            <mat-select (selectionChange)="onProjectSelect($event.value)">
+              <mat-option *ngFor="let proj of availableProjects" [value]="proj.id">
+                {{ proj.name }}
+              </mat-option>
+            </mat-select>
+          </mat-form-field>
+        </mat-card-content>
+      </mat-card>
+    </div>
+
+    <div class="sprint-header" *ngIf="project">
       <div class="header-info">
         <h1>
           <mat-icon>track_changes</mat-icon>
@@ -122,7 +140,7 @@
                    [cdkDropListData]="getTasksByStatus(column.status)"
                    (cdkDropListDropped)="onTaskDrop($event)"
                    [id]="column.status"
-                   [cdkDropListConnectedTo]="sprintColumns.map(c => c.status)">
+                   [cdkDropListConnectedTo]="sprintColumnIds">
                 
                 <div class="task-card" 
                      *ngFor="let task of getTasksByStatus(column.status)"
@@ -365,10 +383,10 @@
       </mat-tab>
     </mat-tab-group>
   </div>
-</div> -->
+</div>
 
 <!-- Create Sprint Modal -->
-<!-- <div class="modal-backdrop" *ngIf="showCreateSprintModal" (click)="closeCreateSprintModal()">
+<div class="modal-backdrop" *ngIf="showCreateSprintModal" (click)="closeCreateSprintModal()">
   <mat-card class="modal-card" (click)="$event.stopPropagation()">
     <mat-card-header>
       <mat-card-title>Create New Sprint</mat-card-title>
@@ -424,10 +442,10 @@
       </button>
     </mat-card-actions>
   </mat-card>
-</div> -->
+</div>
 
 <!-- Edit Sprint Modal -->
-<!-- <div class="modal-backdrop" *ngIf="showEditSprintModal" (click)="closeEditSprintModal()">
+<div class="modal-backdrop" *ngIf="showEditSprintModal" (click)="closeEditSprintModal()">
   <mat-card class="modal-card" (click)="$event.stopPropagation()">
     <mat-card-header>
       <mat-card-title>Edit Sprint</mat-card-title>
@@ -481,4 +499,4 @@
       </button>
     </mat-card-actions>
   </mat-card>
-</div> -->
+</div>

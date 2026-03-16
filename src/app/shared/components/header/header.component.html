@@ -178,15 +178,6 @@
         <mat-icon>{{ isDarkMode ? 'light_mode' : 'dark_mode' }}</mat-icon>
       </button>
 
-      <!-- Settings -->
-      <button 
-        mat-icon-button 
-        matTooltip="Settings"
-        (click)="onSettingsClick()"
-        aria-label="Settings">
-        <mat-icon>settings</mat-icon>
-      </button>
-
       <!-- Profile Menu -->
       <div class="profile-container">
         <button 
@@ -223,11 +214,6 @@
           
           <mat-divider></mat-divider>
           
-          <button mat-menu-item routerLink="/profile-dashboard">
-            <mat-icon>dashboard_customize</mat-icon>
-            <span>Profile Dashboard</span>
-          </button>
-
           <button mat-menu-item routerLink="/profile">
             <mat-icon>person</mat-icon>
             <span>My Profile</span>

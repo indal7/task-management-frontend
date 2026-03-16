@@ -60,6 +60,7 @@ export class AdvancedAnalyticsComponent implements OnInit, OnDestroy {
   analyticsData: AnalyticsData | null = null;
   teamMembers: TeamMember[] = [];
   projectSummaries: ProjectSummary[] = [];
+  private userProductivityList: any[] = [];
   
   // UI State
   isLoading = false;
@@ -140,7 +141,8 @@ export class AdvancedAnalyticsComponent implements OnInit, OnDestroy {
       users: this.authService.getUsers()
     }).subscribe({
       next: (data) => {
-        this.projects = (data.projects as unknown as any).results;
+        const projectsResponse = data.projects as any;
+        this.projects = projectsResponse.data || projectsResponse.results || (Array.isArray(projectsResponse) ? projectsResponse : []);
         this.users = data.users;
         this.loadAnalyticsData();
       },
@@ -158,11 +160,13 @@ export class AdvancedAnalyticsComponent implements OnInit, OnDestroy {
     forkJoin({
       taskCompletion: this.analyticsService.getTaskCompletionRate(this.selectedTimeframe),
       userProductivity: this.analyticsService.getUserProductivity(),
-      statusDistribution: this.analyticsService.getTaskStatusDistribution(),
+      userProductivityList: this.analyticsService.getUserProductivityAnalytics(),
+      statusDistribution: this.analyticsService.getTaskStatusDistributionData(),
       priorityDistribution: this.analyticsService.getTaskPriorityDistribution()
     }).subscribe({
       next: (data) => {
         this.analyticsData = data as any;
+        this.userProductivityList = Array.isArray(data.userProductivityList) ? data.userProductivityList : [];
         this.processSummaryStats();
         this.generateTeamMemberData();
         this.generateProjectSummaries();
@@ -194,28 +198,32 @@ export class AdvancedAnalyticsComponent implements OnInit, OnDestroy {
   }
 
   private generateTeamMemberData(): void {
-    // Mock team member data - in real app, get from API
-    this.teamMembers = this.users.map((user, index) => ({
-      id: user.id,
-      name: user.name,
-      role: user.role || 'Developer',
-      tasksCompleted: Math.floor(Math.random() * 20) + 5,
-      averageCompletionTime: Math.floor(Math.random() * 5) + 1,
-      productivity: Math.floor(Math.random() * 30) + 70,
-      currentTasks: Math.floor(Math.random() * 8) + 2
-    }));
+    this.teamMembers = this.users.map((user) => {
+      const productivity = this.userProductivityList.find(p => p.user_id === user.id);
+      return {
+        id: user.id,
+        name: user.name,
+        role: user.role || 'Developer',
+        tasksCompleted: productivity?.completed_tasks || 0,
+        averageCompletionTime: productivity ? Math.round(productivity.average_completion_time_hours / 24) : 0,
+        productivity: productivity?.completion_rate || 0,
+        currentTasks: productivity?.in_progress_tasks || 0
+      };
+    });
   }
 
   private generateProjectSummaries(): void {
-    // Mock project summaries - in real app, get from API
+    // Use real project data from API
     this.projectSummaries = this.projects.map(project => ({
       id: project.id,
       name: project.name,
-      progress: Math.floor(Math.random() * 100),
-      tasksCount: Math.floor(Math.random() * 50) + 10,
-      completedTasks: Math.floor(Math.random() * 30) + 5,
-      overdueTasks: Math.floor(Math.random() * 5),
-      teamSize: Math.floor(Math.random() * 8) + 3,
+      progress: project.tasks_count > 0
+        ? Math.floor((project.completed_tasks_count / project.tasks_count) * 100)
+        : 0,
+      tasksCount: project.tasks_count || 0,
+      completedTasks: project.completed_tasks_count || 0,
+      overdueTasks: 0,
+      teamSize: project.team_members ? project.team_members.length : 0,
       status: project.status
     }));
   }
@@ -235,30 +243,32 @@ export class AdvancedAnalyticsComponent implements OnInit, OnDestroy {
     const ctx = this.burndownChartRef.nativeElement.getContext('2d');
     if (!ctx) return;
 
-    // Mock burndown data
-    const days = Array.from({length: 14}, (_, i) => `Day ${i + 1}`);
-    const idealBurndown = days.map((_, i) => 100 - (i * 7.14));
-    const actualBurndown = [100, 95, 88, 82, 75, 70, 62, 58, 48, 42, 35, 28, 20, 12];
+    // Use real status distribution data instead of mock burndown
+    const statusDistribution: any[] = this.analyticsData?.statusDistribution || [];
+    const labels = statusDistribution.length > 0
+      ? statusDistribution.map((d: any) => d.status || d.label || 'Unknown')
+      : ['TODO', 'IN_PROGRESS', 'IN_REVIEW', 'DONE'];
+    const counts = statusDistribution.length > 0
+      ? statusDistribution.map((d: any) => d.count || 0)
+      : [0, 0, 0, 0];
 
     const config: ChartConfiguration = {
-      type: 'line',
+      type: 'bar',
       data: {
-        labels: days,
+        labels,
         datasets: [
           {
-            label: 'Ideal Burndown',
-            data: idealBurndown,
-            borderColor: '#10b981',
-            backgroundColor: 'rgba(16, 185, 129, 0.1)',
-            borderDash: [5, 5],
-            tension: 0
-          },
-          {
-            label: 'Actual Burndown',
-            data: actualBurndown,
-            borderColor: '#3b82f6',
-            backgroundColor: 'rgba(59, 130, 246, 0.1)',
-            tension: 0.1
+            label: 'Tasks by Status',
+            data: counts,
+            backgroundColor: [
+              'rgba(156, 163, 175, 0.8)',
+              'rgba(59, 130, 246, 0.8)',
+              'rgba(245, 158, 11, 0.8)',
+              'rgba(16, 185, 129, 0.8)',
+              'rgba(239, 68, 68, 0.8)',
+              'rgba(139, 92, 246, 0.8)'
+            ],
+            borderWidth: 1
           }
         ]
       },
@@ -266,22 +276,13 @@ export class AdvancedAnalyticsComponent implements OnInit, OnDestroy {
         responsive: true,
         maintainAspectRatio: false,
         plugins: {
-          legend: {
-            position: 'top'
-          },
-          title: {
-            display: true,
-            text: 'Sprint Burndown'
-          }
+          legend: { position: 'top' },
+          title: { display: true, text: 'Task Status Distribution' }
         },
         scales: {
           y: {
             beginAtZero: true,
-            max: 100,
-            title: {
-              display: true,
-              text: 'Story Points'
-            }
+            title: { display: true, text: 'Number of Tasks' }
           }
         }
       }
@@ -294,26 +295,33 @@ export class AdvancedAnalyticsComponent implements OnInit, OnDestroy {
     const ctx = this.velocityChartRef.nativeElement.getContext('2d');
     if (!ctx) return;
 
-    // Mock velocity data
-    const sprints = ['Sprint 1', 'Sprint 2', 'Sprint 3', 'Sprint 4', 'Sprint 5'];
-    const committedPoints = [25, 28, 30, 26, 32];
-    const completedPoints = [23, 28, 27, 24, 30];
+    // Use real priority distribution data
+    const priorityDistribution: any[] = this.analyticsData?.priorityDistribution || [];
+    const labels = priorityDistribution.length > 0
+      ? priorityDistribution.map((d: any) => d.priority || d.label || 'Unknown')
+      : ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'];
+    const totals = priorityDistribution.length > 0
+      ? priorityDistribution.map((d: any) => d.count || 0)
+      : [0, 0, 0, 0];
+    const completed = priorityDistribution.length > 0
+      ? priorityDistribution.map((d: any) => d.completed_count || 0)
+      : [0, 0, 0, 0];
 
     const config: ChartConfiguration = {
       type: 'bar',
       data: {
-        labels: sprints,
+        labels,
         datasets: [
           {
-            label: 'Committed',
-            data: committedPoints,
+            label: 'Total',
+            data: totals,
             backgroundColor: 'rgba(156, 163, 175, 0.8)',
             borderColor: '#9ca3af',
             borderWidth: 1
           },
           {
             label: 'Completed',
-            data: completedPoints,
+            data: completed,
             backgroundColor: 'rgba(59, 130, 246, 0.8)',
             borderColor: '#3b82f6',
             borderWidth: 1
@@ -324,21 +332,13 @@ export class AdvancedAnalyticsComponent implements OnInit, OnDestroy {
         responsive: true,
         maintainAspectRatio: false,
         plugins: {
-          legend: {
-            position: 'top'
-          },
-          title: {
-            display: true,
-            text: 'Sprint Velocity'
-          }
+          legend: { position: 'top' },
+          title: { display: true, text: 'Tasks by Priority' }
         },
         scales: {
           y: {
             beginAtZero: true,
-            title: {
-              display: true,
-              text: 'Story Points'
-            }
+            title: { display: true, text: 'Number of Tasks' }
           }
         }
       }
@@ -351,16 +351,16 @@ export class AdvancedAnalyticsComponent implements OnInit, OnDestroy {
     const ctx = this.workloadChartRef.nativeElement.getContext('2d');
     if (!ctx) return;
 
-    // Mock workload data
-    const teamMembers = this.teamMembers.slice(0, 6).map(member => member.name);
-    const workloadData = teamMembers.map(() => Math.floor(Math.random() * 40) + 20);
+    // Use real project data for workload distribution
+    const projectLabels = this.projectSummaries.slice(0, 6).map(p => p.name);
+    const taskCounts = this.projectSummaries.slice(0, 6).map(p => p.tasksCount);
 
     const config: ChartConfiguration = {
       type: 'doughnut',
       data: {
-        labels: teamMembers,
+        labels: projectLabels.length > 0 ? projectLabels : ['No Projects'],
         datasets: [{
-          data: workloadData,
+          data: taskCounts.length > 0 ? taskCounts : [1],
           backgroundColor: [
             '#ef4444',
             '#f97316',
@@ -376,13 +376,8 @@ export class AdvancedAnalyticsComponent implements OnInit, OnDestroy {
         responsive: true,
         maintainAspectRatio: false,
         plugins: {
-          legend: {
-            position: 'right'
-          },
-          title: {
-            display: true,
-            text: 'Team Workload Distribution'
-          }
+          legend: { position: 'right' },
+          title: { display: true, text: 'Tasks per Project' }
         }
       }
     };
@@ -394,26 +389,29 @@ export class AdvancedAnalyticsComponent implements OnInit, OnDestroy {
     const ctx = this.trendChartRef.nativeElement.getContext('2d');
     if (!ctx) return;
 
-    // Mock trend data
-    const weeks = ['Week 1', 'Week 2', 'Week 3', 'Week 4', 'Week 5', 'Week 6'];
-    const completedTasks = [12, 18, 15, 22, 25, 20];
-    const createdTasks = [15, 20, 18, 25, 23, 22];
+    // Use real daily completion data from task analytics
+    const dailyCompletion: any[] = this.analyticsData?.taskCompletion?.daily_completion || [];
+    const labels = dailyCompletion.length > 0
+      ? dailyCompletion.map((d: any) => d.date || '')
+      : [];
+    const completedData = dailyCompletion.map((d: any) => d.completed || 0);
+    const createdData = dailyCompletion.map((d: any) => d.created || 0);
 
     const config: ChartConfiguration = {
       type: 'line',
       data: {
-        labels: weeks,
+        labels: labels.length > 0 ? labels : ['No Data'],
         datasets: [
           {
             label: 'Tasks Completed',
-            data: completedTasks,
+            data: completedData.length > 0 ? completedData : [0],
             borderColor: '#10b981',
             backgroundColor: 'rgba(16, 185, 129, 0.1)',
             tension: 0.4
           },
           {
             label: 'Tasks Created',
-            data: createdTasks,
+            data: createdData.length > 0 ? createdData : [0],
             borderColor: '#f59e0b',
             backgroundColor: 'rgba(245, 158, 11, 0.1)',
             tension: 0.4
@@ -424,21 +422,13 @@ export class AdvancedAnalyticsComponent implements OnInit, OnDestroy {
         responsive: true,
         maintainAspectRatio: false,
         plugins: {
-          legend: {
-            position: 'top'
-          },
-          title: {
-            display: true,
-            text: 'Task Creation vs Completion Trend'
-          }
+          legend: { position: 'top' },
+          title: { display: true, text: 'Task Creation vs Completion Trend' }
         },
         scales: {
           y: {
             beginAtZero: true,
-            title: {
-              display: true,
-              text: 'Number of Tasks'
-            }
+            title: { display: true, text: 'Number of Tasks' }
           }
         }
       }
@@ -513,20 +503,25 @@ export class AdvancedAnalyticsComponent implements OnInit, OnDestroy {
 
   // Helper Methods
   private calculateTeamProductivity(): number {
-    if (this.teamMembers.length === 0) return 0;
-    const totalProductivity = this.teamMembers.reduce((sum, member) => sum + member.productivity, 0);
-    return Math.round(totalProductivity / this.teamMembers.length);
+    if (!this.analyticsData?.userProductivity) return 0;
+    return this.analyticsData.userProductivity.productivity_score || 0;
   }
 
   private calculateProjectsOnTrack(): number {
-    return this.projectSummaries.filter(project => 
+    return this.projectSummaries.filter(project =>
       project.progress >= 75 && project.overdueTasks < 3
     ).length;
   }
 
   private calculateUpcomingDeadlines(): number {
-    // Mock calculation - in real app, check actual deadlines
-    return Math.floor(Math.random() * 10) + 5;
+    const now = new Date();
+    const sevenDaysFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+    return this.projectSummaries.filter(project => {
+      const projectData = this.projects.find(p => p.id === project.id);
+      if (!projectData?.end_date) return false;
+      const endDate = new Date(projectData.end_date);
+      return endDate >= now && endDate <= sevenDaysFromNow;
+    }).length;
   }
 
   getProductivityColor(productivity: number): string {
