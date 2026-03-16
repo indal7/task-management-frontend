@@ -84,6 +84,7 @@ export interface ProfileUpdateRequest {
   linkedin_url?: string;
   phone?: string;
   timezone?: string;
+  daily_work_hours?: number;
   hourly_rate?: number;
 }
 

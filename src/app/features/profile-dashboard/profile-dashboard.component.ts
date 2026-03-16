@@ -210,6 +210,7 @@ export class ProfileDashboardComponent implements OnInit, OnDestroy {
       linkedin_url: v.linkedin_url || undefined,
       phone: v.phone || undefined,
       timezone: v.timezone || undefined,
+      daily_work_hours: v.daily_work_hours || undefined,
       hourly_rate: v.hourly_rate || undefined
     };
 
