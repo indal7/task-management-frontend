@@ -136,6 +136,16 @@ export const routes: Routes = [
     }
   },
 
+  {
+    path: 'profile-dashboard',
+    loadChildren: () => import('./features/profile-dashboard/profile-dashboard.module').then(m => m.ProfileDashboardModule),
+    canActivate: [AuthGuard],
+    data: {
+      title: 'Profile Dashboard',
+      breadcrumb: 'Profile Dashboard'
+    }
+  },
+
   // 🔧 ERROR HANDLING ROUTES - FIXED: Uncommented and enabled
   {
     path: '404',
