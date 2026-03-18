@@ -8,8 +8,11 @@ import { BehaviorSubject } from 'rxjs';
 @Injectable()
 export class LoadingInterceptor implements HttpInterceptor {
   private activeRequests = 0;
+  private globalOverlayRequests = 0;
   private skippedEndpoints = [
     '/auth/ping',
+    '/auth/me',
+    '/auth/profile',
     '/health',
     '/notifications/summary'
   ];
@@ -58,8 +61,12 @@ export class LoadingInterceptor implements HttpInterceptor {
 
   private startLoading(request: HttpRequest<any>): void {
     this.activeRequests++;
-    
-    if (this.activeRequests === 1) {
+
+    if (this.shouldShowGlobalOverlay(request)) {
+      this.globalOverlayRequests++;
+    }
+
+    if (this.globalOverlayRequests === 1 && this.shouldShowGlobalOverlay(request)) {
       this.loadingService.show();
     }
 
@@ -69,13 +76,28 @@ export class LoadingInterceptor implements HttpInterceptor {
 
   private stopLoading(request: HttpRequest<any>): void {
     this.activeRequests = Math.max(0, this.activeRequests - 1);
-    
-    if (this.activeRequests === 0) {
+
+    if (this.shouldShowGlobalOverlay(request)) {
+      this.globalOverlayRequests = Math.max(0, this.globalOverlayRequests - 1);
+    }
+
+    if (this.globalOverlayRequests === 0) {
       this.loadingService.hide();
     }
 
     // Clear loading for specific request types
     this.setSpecificLoading(request, false);
+  }
+
+  private shouldShowGlobalOverlay(request: HttpRequest<any>): boolean {
+    const method = request.method.toUpperCase();
+    const url = request.url.toLowerCase();
+
+    if (method !== 'GET') {
+      return true;
+    }
+
+    return url.includes('/auth/login') || url.includes('/auth/register') || url.includes('/auth/refresh');
   }
 
   private setSpecificLoading(request: HttpRequest<any>, isLoading: boolean): void {

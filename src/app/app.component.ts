@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy, HostListener } from '@angular/core';
+import { Component, OnInit, OnDestroy, HostListener, ChangeDetectorRef } from '@angular/core';
 import { Router, NavigationEnd } from '@angular/router';
 import { Subject } from 'rxjs';
 import { takeUntil, filter } from 'rxjs/operators';
@@ -7,6 +7,7 @@ import { AuthService } from './core/services/auth.service';
 import { LoadingService } from './core/interceptors/loading.interceptor';
 import { EnumService } from './core/services/enum.service';
 import { NotificationService } from './core/services/notification.service';
+import { AppearanceService } from './core/services/appearance.service';
 
 @Component({
   selector: 'app-root',
@@ -19,7 +20,7 @@ export class AppComponent implements OnInit, OnDestroy {
   title = 'Task Management System';
   isAuthenticated = false;
   isLoading = false;
-  showSidebar = true;
+  showSidebar = false;
   sidebarCollapsed = false;
 
   constructor(
@@ -27,10 +28,12 @@ export class AppComponent implements OnInit, OnDestroy {
     private loadingService: LoadingService,
     private enumService: EnumService,
     private notificationService: NotificationService,
-    private router: Router
+    private appearanceService: AppearanceService,
+    private router: Router,
+    private cdr: ChangeDetectorRef
   ) {
-    // Apply theme before any rendering occurs
-    this.initializeTheme();
+    // Apply appearance preferences before first render.
+    this.appearanceService.initialize();
   }
 
   ngOnInit(): void {
@@ -53,23 +56,6 @@ export class AppComponent implements OnInit, OnDestroy {
     }
   }
 
-  private initializeTheme(): void {
-    try {
-      const stored = JSON.parse(localStorage.getItem('userSettings') || '{}');
-      const theme = (stored?.general?.theme as string) || 'light';
-      const body = document.body;
-      body.classList.remove('light-theme', 'dark-theme');
-      if (theme === 'auto') {
-        const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-        body.classList.add(prefersDark ? 'dark-theme' : 'light-theme');
-      } else {
-        body.classList.add(`${theme}-theme`);
-      }
-    } catch {
-      document.body.classList.add('light-theme');
-    }
-  }
-
   private initializeApp(): void {
     // Initialize enum service (loads all dropdown data)
     this.enumService.loadAllEnums().subscribe({
@@ -89,10 +75,14 @@ export class AppComponent implements OnInit, OnDestroy {
       });
 
     // Global HTTP loading state from interceptor
+    // Promise.resolve defers the update to after current CD cycle, preventing NG0100
     this.loadingService.loading$
       .pipe(takeUntil(this.destroy$))
       .subscribe(isLoading => {
-        this.isLoading = isLoading;
+        Promise.resolve().then(() => {
+          this.isLoading = isLoading;
+          this.cdr.markForCheck();
+        });
       });
 
     // Router events for sidebar visibility
@@ -126,12 +116,12 @@ export class AppComponent implements OnInit, OnDestroy {
 
   private updateSidebarVisibility(url?: string): void {
     const currentUrl = url || this.router.url;
-    
-    // Hide sidebar on auth pages and access denied page
-    const hideSidebarRoutes = ['/auth', '/access-denied'];
-    // this.showSidebar = this.isAuthenticated && 
-    //                  !hideSidebarRoutes.some(route => currentUrl.startsWith(route));
-    this.showSidebar = true;
+
+    // Keep auth screens isolated: no app shell (sidebar/header) on these routes.
+    const isAuthRoute = currentUrl.startsWith('/auth');
+    const isAccessDeniedRoute = currentUrl.startsWith('/access-denied');
+
+    this.showSidebar = this.isAuthenticated && !isAuthRoute && !isAccessDeniedRoute;
   }
 
   onSidebarToggle(collapsed: boolean): void {

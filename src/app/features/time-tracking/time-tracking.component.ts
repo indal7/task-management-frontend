@@ -76,7 +76,7 @@ interface WeeklyStats {
               <mat-label>Select Task</mat-label>
               <mat-select [(value)]="selectedTaskId" [disabled]="isTimerRunning">
                 <mat-option *ngFor="let task of availableTasks" [value]="task.id">
-                  {{ task.title }} ({{ task.project || 'No Project' }})
+                  {{ formatTaskOption(task) }}
                 </mat-option>
               </mat-select>
             </mat-form-field>
@@ -635,39 +635,32 @@ export class TimeTrackingComponent implements OnInit, OnDestroy {
     this.isLoading = true;
     this.dailyTimeLogs = [];
 
-    // Fetch time logs for each available task that has time logs
-    const tasksWithLogs = this.availableTasks.filter(t => t.time_logs_count > 0);
-    if (tasksWithLogs.length === 0) {
-      this.isLoading = false;
-      this.calculateWeeklyStats();
-      return;
-    }
+    const dateFilter = this.selectedDate ? this.selectedDate.toISOString().split('T')[0] : undefined;
 
-    const logRequests = tasksWithLogs.map(task =>
-      this.taskService.getTaskTimeLogs(task.id).pipe(
-        map(logs => ({ task, logs })),
-        catchError(() => of({ task, logs: [] as TimeLog[] }))
-      )
-    );
-
-    forkJoin(logRequests)
+    this.taskService.getUserTimeLogs({
+      limit: 200,
+      start_date: dateFilter,
+      end_date: dateFilter
+    })
       .pipe(takeUntil(this.destroy$))
       .subscribe({
-        next: (results) => {
-          const dailyMap: { [date: string]: DailyTimeLog } = {};
+        next: (result) => {
+          const taskMap = new Map(this.availableTasks.map(task => [task.id, task]));
 
-          for (const { task, logs } of results) {
-            for (const log of logs) {
+          this.dailyTimeLogs = (result.daily_breakdown || []).map(daily => {
+            const entries: TimeEntry[] = (daily.logs || []).map(log => {
+              const matchedTask = taskMap.get(log.task_id);
               const dateStr = log.logged_at || log.created_at || new Date().toISOString();
-              const date = dateStr.split('T')[0];
-              const durationMinutes = Math.round(log.hours_logged * 60);
+              const date = (log.work_date || dateStr.split('T')[0]);
+              const durationHours = (typeof log.hours === 'number' ? log.hours : (log.hours_logged || 0));
+              const durationMinutes = Math.round(durationHours * 60);
               const loggedAt = new Date(dateStr);
 
-              const entry: TimeEntry = {
+              return {
                 id: log.id,
-                taskId: task.id,
-                taskTitle: task.title,
-                projectName: task.project?.name || 'Unknown Project',
+                taskId: log.task_id,
+                taskTitle: matchedTask?.title || `Task #${log.task_id}`,
+                projectName: matchedTask?.project?.name || 'Unknown Project',
                 startTime: loggedAt,
                 endTime: loggedAt,
                 duration: durationMinutes,
@@ -675,27 +668,39 @@ export class TimeTrackingComponent implements OnInit, OnDestroy {
                 date,
                 isRunning: false
               };
+            });
 
-              if (!dailyMap[date]) {
-                dailyMap[date] = { date, totalMinutes: 0, entries: [] };
-              }
-              dailyMap[date].entries.push(entry);
-              dailyMap[date].totalMinutes += durationMinutes;
-            }
-          }
+            const totalMinutes = Math.round((daily.total_hours || 0) * 60);
+            return {
+              date: daily.date,
+              totalMinutes,
+              entries
+            };
+          }).sort((a, b) => b.date.localeCompare(a.date));
 
-          // Sort descending by date
-          this.dailyTimeLogs = Object.values(dailyMap).sort((a, b) => b.date.localeCompare(a.date));
           this.isLoading = false;
           this.calculateWeeklyStats();
         },
-        error: () => {
+        error: (error) => {
+          console.error('Error loading user time logs:', error);
           this.isLoading = false;
+          this.calculateWeeklyStats();
         }
       });
   }
 
   calculateWeeklyStats(): void {
+    if (!this.dailyTimeLogs.length) {
+      this.weeklyStats = {
+        totalHours: 0,
+        dailyAverages: 0,
+        mostProductiveDay: '-',
+        projectBreakdown: {}
+      };
+      this.todayHours = 0;
+      return;
+    }
+
     console.log('Calculating weekly stats from daily logs:', this.dailyTimeLogs);
     const totalMinutes = this.dailyTimeLogs.reduce((sum, log) => sum + log.totalMinutes, 0);
     this.weeklyStats.totalHours = Math.round(totalMinutes / 60 * 10) / 10;
@@ -759,9 +764,10 @@ export class TimeTrackingComponent implements OnInit, OnDestroy {
     if (this.selectedTaskId && hoursLogged > 0) {
       const selectedTask = this.availableTasks.find(task => task.id === this.selectedTaskId);
       this.taskService.createTimeLog(this.selectedTaskId, {
+        hours: hoursLogged,
         hours_logged: hoursLogged,
         description: this.timerDescription || undefined,
-        logged_at: new Date().toISOString()
+        work_date: new Date().toISOString().split('T')[0]
       }).subscribe({
         next: (log) => {
           if (selectedTask) {
@@ -815,36 +821,93 @@ export class TimeTrackingComponent implements OnInit, OnDestroy {
   }
 
   onDateFilterChange(): void {
-    if (this.selectedDate) {
-      // Filter logs by selected date
-      const dateString = this.selectedDate.toISOString().split('T')[0];
-      this.dailyTimeLogs = this.dailyTimeLogs.filter(log => log.date === dateString);
-    } else {
-      this.loadTimeLogs();
-    }
+    this.loadTimeLogs();
   }
 
   editTimeEntry(entry: TimeEntry): void {
-    // console.log('Edit time entry:', entry);
-    // TODO: Implement edit functionality
+    const currentHours = (entry.duration / 60).toFixed(2);
+    const updatedHoursInput = window.prompt('Update logged hours', currentHours);
+    if (updatedHoursInput === null) {
+      return;
+    }
+
+    const updatedHours = Number(updatedHoursInput);
+    if (Number.isNaN(updatedHours) || updatedHours <= 0) {
+      window.alert('Please enter a valid number of hours greater than 0.');
+      return;
+    }
+
+    const updatedDescription = window.prompt('Update description', entry.description || '') ?? entry.description;
+
+    this.taskService.updateTimeLog(entry.taskId, entry.id, {
+      hours: updatedHours,
+      hours_logged: updatedHours,
+      description: updatedDescription,
+      work_date: entry.date
+    }).subscribe({
+      next: () => {
+        this.loadTimeLogs();
+      },
+      error: (error) => {
+        console.error('Failed to update time log:', error);
+        window.alert(error?.message || 'Failed to update time log');
+      }
+    });
   }
 
   deleteTimeEntry(entry: TimeEntry): void {
     if (confirm('Are you sure you want to delete this time entry?')) {
-      this.dailyTimeLogs.forEach(log => {
-        const index = log.entries.findIndex(e => e.id === entry.id);
-        if (index > -1) {
-          log.entries.splice(index, 1);
-          log.totalMinutes -= entry.duration;
+      this.taskService.deleteTimeLog(entry.taskId, entry.id).subscribe({
+        next: () => {
+          this.loadTimeLogs();
+        },
+        error: (error) => {
+          console.error('Failed to delete time log:', error);
+          window.alert(error?.message || 'Failed to delete time log');
         }
       });
-      this.calculateWeeklyStats();
     }
   }
 
   exportTimesheet(): void {
-    // console.log('Export timesheet');
-    // TODO: Implement export functionality
+    const rows = this.dailyTimeLogs.flatMap(log =>
+      log.entries.map(entry => ({
+        date: log.date,
+        task: entry.taskTitle,
+        project: entry.projectName,
+        description: entry.description || '',
+        start: entry.startTime.toLocaleTimeString(),
+        end: entry.endTime ? entry.endTime.toLocaleTimeString() : '',
+        duration: this.formatMinutesToHours(entry.duration)
+      }))
+    );
+
+    if (!rows.length) {
+      window.alert('No time logs available to export.');
+      return;
+    }
+
+    const csvHeader = ['Date', 'Task', 'Project', 'Description', 'Start Time', 'End Time', 'Duration'];
+    const csvBody = rows.map(row => [
+      row.date,
+      row.task,
+      row.project,
+      row.description,
+      row.start,
+      row.end,
+      row.duration
+    ].map(value => `"${String(value).replace(/"/g, '""')}"`).join(','));
+
+    const csvContent = [csvHeader.join(','), ...csvBody].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const downloadUrl = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = downloadUrl;
+    link.download = `timesheet-${new Date().toISOString().split('T')[0]}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(downloadUrl);
   }
 
   formatTime(seconds: number): string {
@@ -878,5 +941,10 @@ export class TimeTrackingComponent implements OnInit, OnDestroy {
     const totalMinutes = Object.values(this.weeklyStats.projectBreakdown)
       .reduce((sum, mins) => sum + mins, 0);
     return totalMinutes > 0 ? (minutes / totalMinutes) * 100 : 0;
+  }
+
+  formatTaskOption(task: Task): string {
+    const projectName = task.project?.name || 'No Project';
+    return `${task.title} (${projectName})`;
   }
 }

@@ -7,6 +7,8 @@ import { TaskService } from '../../../core/services/task.service';
 import { AuthService } from '../../../core/services/auth.service';
 import { EnumService } from '../../../core/services/enum.service';
 import { ActivatedRoute } from '@angular/router';  // Add this line
+import { parseApiDate } from '../../../core/utils/date-time.util';
+import { AppearanceService } from '../../../core/services/appearance.service';
 
 @Component({
   selector: 'app-task-list',
@@ -26,6 +28,7 @@ export class TaskListComponent implements OnInit, OnDestroy {
 
   // Add view mode and columns for different layouts
   viewMode: 'list' | 'grid' | 'kanban' = 'list';
+  showCreateTaskModal = false;
 
   // 🔧 FIXED: Updated status columns to match API enum values
   statusColumns = [
@@ -59,6 +62,7 @@ export class TaskListComponent implements OnInit, OnDestroy {
     private enumService: EnumService,
     public router: Router,
     private route: ActivatedRoute,
+    private appearanceService: AppearanceService,
 
   ) { }
 
@@ -67,9 +71,26 @@ export class TaskListComponent implements OnInit, OnDestroy {
       this.router.navigate(['/auth/login']);
       return;
     }
+
+    this.viewMode = this.appearanceService.getCurrentSettings().defaultView;
+
+    this.appearanceService.appearance$
+      .pipe(takeUntil(this.destroy$))
+      .subscribe(settings => {
+        this.viewMode = settings.defaultView;
+      });
+
     this.getCurrentUser();
     // this.loadTasks();
     this.determineTaskType();
+
+    this.route.queryParamMap
+      .pipe(takeUntil(this.destroy$))
+      .subscribe(params => {
+        if (params.get('create') === '1') {
+          this.showCreateTaskModal = true;
+        }
+      });
   }
 
   ngOnDestroy(): void {
@@ -223,7 +244,22 @@ export class TaskListComponent implements OnInit, OnDestroy {
   }
 
   createNewTask(): void {
-    this.router.navigate(['/tasks/new']);
+    this.showCreateTaskModal = true;
+  }
+
+  closeCreateTaskModal(): void {
+    this.showCreateTaskModal = false;
+    this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: { create: null },
+      queryParamsHandling: 'merge',
+      replaceUrl: true
+    });
+  }
+
+  onTaskCreatedFromModal(): void {
+    this.closeCreateTaskModal();
+    this.refreshTasks();
   }
 
   // 🔧 FIXED: Use proper API method for delete
@@ -264,6 +300,7 @@ export class TaskListComponent implements OnInit, OnDestroy {
   // Set view mode
   setViewMode(mode: 'list' | 'grid' | 'kanban'): void {
     this.viewMode = mode;
+    this.appearanceService.setDefaultView(mode);
   }
 
   // Clear all filters
@@ -296,7 +333,8 @@ export class TaskListComponent implements OnInit, OnDestroy {
   getRelativeTime(dateString: string): string {
     if (!dateString) return '';
 
-    const date = new Date(dateString);
+    const date = parseApiDate(dateString);
+    if (!date) return '';
     const now = new Date();
     const diffTime = now.getTime() - date.getTime();
     const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));

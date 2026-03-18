@@ -28,6 +28,7 @@ export interface TaskFilters {
   sprint_id?: number;
   created_by_id?: number;
   created_by?: number; // Alternative field name
+  overdue?: boolean;
   due_date_from?: string;
   due_date_to?: string;
   search?: string;
@@ -174,7 +175,11 @@ export class TaskService {
 
   // 🔧 IMPROVED: Handle new response format for assign
   assignTask(id: number, assignData: AssignTaskRequest): Observable<Task> {
-    return this.http.post<ApiResponse<Task>>(API_ENDPOINTS.TASKS.ASSIGN(id), assignData)
+    const payload: { user_id: number } = {
+      user_id: (assignData as any).user_id ?? (assignData as any).assigned_to_id
+    };
+
+    return this.http.post<ApiResponse<Task>>(API_ENDPOINTS.TASKS.ASSIGN(id), payload)
       .pipe(
         map(response => {
           if (response.success && response.data) {
@@ -291,7 +296,16 @@ export class TaskService {
   }
 
   createTimeLog(taskId: number, timeLogData: CreateTimeLogRequest): Observable<TimeLog> {
-    return this.http.post<ApiResponse<TimeLog>>(API_ENDPOINTS.TASKS.TIME_LOG(taskId), timeLogData)
+    const normalizedHours = timeLogData.hours ?? timeLogData.hours_logged;
+    const normalizedWorkDate = timeLogData.work_date || (timeLogData.logged_at ? timeLogData.logged_at.split('T')[0] : undefined);
+
+    const payload: { hours?: number; description?: string; work_date?: string } = {
+      hours: normalizedHours,
+      description: timeLogData.description,
+      work_date: normalizedWorkDate
+    };
+
+    return this.http.post<ApiResponse<TimeLog>>(API_ENDPOINTS.TASKS.TIME_LOG(taskId), payload)
       .pipe(
         map(response => {
           if (response.success && response.data) {
@@ -305,7 +319,15 @@ export class TaskService {
   }
 
   updateTimeLog(taskId: number, timeLogId: number, timeLogData: UpdateTimeLogRequest): Observable<TimeLog> {
-    return this.http.put<ApiResponse<TimeLog>>(`${API_ENDPOINTS.TASKS.TIME_LOG(taskId)}/${timeLogId}`, timeLogData)
+    const normalizedHours = timeLogData.hours ?? timeLogData.hours_logged;
+    const normalizedWorkDate = timeLogData.work_date || (timeLogData.logged_at ? timeLogData.logged_at.split('T')[0] : undefined);
+    const payload: { hours?: number; description?: string; work_date?: string } = {
+      hours: normalizedHours,
+      description: timeLogData.description,
+      work_date: normalizedWorkDate
+    };
+
+    return this.http.put<ApiResponse<TimeLog>>(`${API_ENDPOINTS.TASKS.TIME_LOG(taskId)}/${timeLogId}`, payload)
       .pipe(
         map(response => {
           if (response.success && response.data) {
@@ -332,29 +354,33 @@ export class TaskService {
   }
 
   // 🔧 IMPROVED: User time logs with new response format
-  // getUserTimeLogs(filters?: { start_date?: string; end_date?: string; limit?: number }): Observable<any> {
-  //   let params = new HttpParams();
-  //   if (filters) {
-  //     Object.keys(filters).forEach(key => {
-  //       const value = (filters as any)[key];
-  //       if (value !== undefined && value !== null && value !== '') {
-  //         params = params.set(key, value.toString());
-  //       }
-  //     });
-  //   }
+  getUserTimeLogs(filters?: { start_date?: string; end_date?: string; limit?: number }): Observable<{
+    time_logs: TimeLog[];
+    total_hours: number;
+    total_entries: number;
+    daily_breakdown: Array<{ date: string; total_hours: number; logs: TimeLog[] }>;
+  }> {
+    let params = new HttpParams();
+    if (filters) {
+      Object.keys(filters).forEach(key => {
+        const value = (filters as any)[key];
+        if (value !== undefined && value !== null && value !== '') {
+          params = params.set(key, value.toString());
+        }
+      });
+    }
 
-  //   return this.http.get<ApiResponse<any>>(API_ENDPOINTS.TASKS.TIME_LOGS, { params })
-  //     .pipe(
-  //       map(response => {
-  //         if (response.success && response.data) {
-  //           return response.data;
-  //         } else {
-  //           throw new Error(response.message || 'Failed to load user time logs');
-  //         }
-  //       }),
-  //       catchError(this.handleError.bind(this))
-  //     );
-  // }
+    return this.http.get<ApiResponse<any>>(API_ENDPOINTS.TASKS.USER_TIME_LOGS, { params })
+      .pipe(
+        map(response => {
+          if (response.success && response.data) {
+            return response.data;
+          }
+          throw new Error(response.message || 'Failed to load user time logs');
+        }),
+        catchError(this.handleError.bind(this))
+      );
+  }
 
   // Utility methods
   getMyTasks(): Observable<Task[]> {

@@ -29,7 +29,8 @@
           <button 
             mat-button 
             color="primary" 
-            (click)="goToToday()">
+            (click)="goToToday()"
+            class="today-btn">
             <mat-icon>today</mat-icon>
             Today
           </button>
@@ -46,7 +47,8 @@
           <button 
             mat-icon-button 
             [matMenuTriggerFor]="filterMenu"
-            matTooltip="Filter tasks">
+            matTooltip="Filter tasks"
+            class="action-icon-btn filter-btn">
             <mat-icon>filter_list</mat-icon>
           </button>
 
@@ -54,7 +56,8 @@
             mat-icon-button 
             (click)="refreshTasks()"
             matTooltip="Refresh"
-            [disabled]="loading">
+            [disabled]="loading"
+            class="action-icon-btn refresh-btn">
             <mat-icon [class.spinning]="loading">refresh</mat-icon>
           </button>
 

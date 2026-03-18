@@ -8,6 +8,7 @@ import { TaskComment } from '../../../core/models/task.model';
 import { TaskService } from '../../../core/services/task.service';
 import { EnumService } from '../../../core/services/enum.service';
 import { AuthService } from '../../../core/services/auth.service';
+import { parseApiDate } from '../../../core/utils/date-time.util';
 
 @Component({
   selector: 'app-task-details',
@@ -313,7 +314,8 @@ export class TaskDetailsComponent implements OnInit, OnDestroy {
   getRelativeTime(dateString: string): string {
     if (!dateString) return '';
     
-    const date = new Date(dateString);
+    const date = parseApiDate(dateString);
+    if (!date) return '';
     const now = new Date();
     const diffTime = now.getTime() - date.getTime();
     const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));

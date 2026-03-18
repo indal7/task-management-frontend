@@ -1,6 +1,6 @@
 // src/app/app-routing.module.ts
 import { NgModule } from '@angular/core';
-import { RouterModule, Routes } from '@angular/router';
+import { RouterModule, Routes, PreloadAllModules } from '@angular/router';
 import { AuthGuard } from './core/guards/auth.guard';
 import { AntiAuthGuard } from './core/guards/anti-auth.guard';
 import { NotFoundComponent } from './shared/components/not-found/not-found.component';
@@ -137,13 +137,19 @@ export const routes: Routes = [
   },
 
   {
-    path: 'profile-dashboard',
+    path: 'profile',
     loadChildren: () => import('./features/profile-dashboard/profile-dashboard.module').then(m => m.ProfileDashboardModule),
     canActivate: [AuthGuard],
     data: {
-      title: 'Profile Dashboard',
-      breadcrumb: 'Profile Dashboard'
+      title: 'My Profile',
+      breadcrumb: 'My Profile'
     }
+  },
+
+  {
+    path: 'profile-dashboard',
+    redirectTo: '/profile',
+    pathMatch: 'full'
   },
 
   // 🔧 ERROR HANDLING ROUTES - FIXED: Uncommented and enabled
@@ -165,17 +171,12 @@ export const routes: Routes = [
 
 @NgModule({
   imports: [RouterModule.forRoot(routes, {
-    // 🔧 ENHANCED ROUTING CONFIGURATION
-    enableTracing: false, // Set to true for debugging routes (disabled for production)
-    preloadingStrategy: 'preload' as any, // Preload lazy-loaded modules
-    scrollPositionRestoration: 'top', // Scroll to top on route change
-    anchorScrolling: 'enabled', // Enable fragment scrolling
-    urlUpdateStrategy: 'eager', // Update URL immediately
-    onSameUrlNavigation: 'reload', // Reload when navigating to same URL
-    errorHandler: (error: any) => {
-      console.error('Router Error:', error);
-      // You could also send this to your error logging service
-    }
+    enableTracing: false,
+    preloadingStrategy: PreloadAllModules,
+    scrollPositionRestoration: 'top',
+    anchorScrolling: 'enabled',
+    urlUpdateStrategy: 'eager',
+    onSameUrlNavigation: 'ignore'
   })],
   exports: [RouterModule]
 })

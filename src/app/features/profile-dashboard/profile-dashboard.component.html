@@ -32,6 +32,13 @@
         <button mat-stroked-button (click)="refreshData()" matTooltip="Refresh data">
           <mat-icon>refresh</mat-icon>
         </button>
+        <button mat-icon-button
+          (click)="toggleDebug()"
+          [matTooltip]="showDebug ? 'Hide API debug panel' : 'Show API debug panel'"
+          class="debug-toggle-btn"
+          [class.debug-active]="showDebug">
+          <mat-icon>{{ showDebug ? 'bug_report' : 'bug_report' }}</mat-icon>
+        </button>
         <button mat-raised-button color="primary" (click)="toggleEditMode()" *ngIf="!isEditMode">
           <mat-icon>edit</mat-icon> Edit Profile
         </button>
@@ -44,6 +51,54 @@
     </div>
     <div class="alert alert-error" *ngIf="saveError">
       <mat-icon>error</mat-icon> {{ saveError }}
+    </div>
+
+    <!-- ── API Debug Panel ──────────────────────────────────────── -->
+    <div class="debug-panel" *ngIf="showDebug">
+      <div class="debug-header">
+        <mat-icon>terminal</mat-icon>
+        <span>API Debug Panel</span>
+        <span class="debug-status-badge"
+          [class.status-idle]="debugInfo.status === 'idle'"
+          [class.status-sending]="debugInfo.status === 'sending'"
+          [class.status-success]="debugInfo.status === 'success'"
+          [class.status-error]="debugInfo.status === 'error' || debugInfo.status === 'timeout'">
+          {{ debugInfo.status | uppercase }}
+          <ng-container *ngIf="debugInfo.statusCode"> · HTTP {{ debugInfo.statusCode }}</ng-container>
+        </span>
+        <span class="debug-duration" *ngIf="debugInfo.durationMs !== null">
+          {{ debugInfo.durationMs }}ms
+        </span>
+      </div>
+
+      <ng-container *ngIf="debugInfo.status !== 'idle'; else idleState">
+        <div class="debug-row">
+          <span class="debug-label">Endpoint</span>
+          <code class="debug-value">{{ debugInfo.endpoint }}</code>
+        </div>
+        <div class="debug-row" *ngIf="debugInfo.timestamp">
+          <span class="debug-label">Fired at</span>
+          <code class="debug-value">{{ debugInfo.timestamp }}</code>
+        </div>
+        <div class="debug-row" *ngIf="debugInfo.errorMessage">
+          <span class="debug-label">Error</span>
+          <code class="debug-value debug-err">{{ debugInfo.errorMessage }}</code>
+        </div>
+
+        <details class="debug-details">
+          <summary>Request Payload</summary>
+          <pre class="debug-pre">{{ debugPayloadJson }}</pre>
+        </details>
+
+        <details class="debug-details" *ngIf="debugInfo.response !== null">
+          <summary>Response Body</summary>
+          <pre class="debug-pre">{{ debugResponseJson }}</pre>
+        </details>
+      </ng-container>
+
+      <ng-template #idleState>
+        <p class="debug-idle-msg">Click <strong>Save Changes</strong> to capture the API call here.</p>
+      </ng-template>
     </div>
 
     <!-- ═══════════════════════════════════════════════════════════
@@ -101,7 +156,7 @@
             </span>
             <span class="meta-item">
               <mat-icon>calendar_today</mat-icon>
-              Member since {{ currentUser?.created_at | date:'MMM yyyy' }}
+              Member since {{ currentUser?.created_at | date:'MMM yyyy':'Asia/Kolkata' }}
             </span>
           </div>
         </mat-card>

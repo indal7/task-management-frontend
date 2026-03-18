@@ -152,9 +152,32 @@
             <p class="project-description">{{ project.description }}</p>
           </div>
           <div class="card-menu">
-            <button class="menu-btn" (click)="$event.stopPropagation()" title="Project actions">
+            <button
+              class="menu-btn"
+              (click)="toggleProjectMenu(project.id, $event)"
+              title="Project actions"
+              [attr.aria-expanded]="openProjectMenuId === project.id"
+              aria-haspopup="true">
               <i class="material-icons">more_vert</i>
             </button>
+
+            <div
+              class="project-menu-dropdown"
+              *ngIf="openProjectMenuId === project.id"
+              (click)="$event.stopPropagation()">
+              <button class="menu-item" (click)="onProjectMenuAction('view', project, $event)">
+                <i class="material-icons">visibility</i>
+                View
+              </button>
+              <button class="menu-item" (click)="onProjectMenuAction('edit', project, $event)">
+                <i class="material-icons">edit</i>
+                Edit
+              </button>
+              <button class="menu-item danger" (click)="onProjectMenuAction('delete', project, $event)">
+                <i class="material-icons">delete</i>
+                Delete
+              </button>
+            </div>
           </div>
         </div>
 

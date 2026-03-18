@@ -1,11 +1,11 @@
-import { Injectable } from '@angular/core';
+import { Injectable, Injector } from '@angular/core';
 import { HttpRequest, HttpHandler, HttpEvent, HttpInterceptor, HttpErrorResponse } from '@angular/common/http';
 import { Observable, throwError, BehaviorSubject } from 'rxjs';
 import { catchError, filter, take, switchMap } from 'rxjs/operators';
 import { Router } from '@angular/router';
 
-import { AuthService } from '../services/auth.service';
 import { STORAGE_KEYS, APP_CONFIG } from '../constants/api.constants';
+import { AuthService } from '../services/auth.service';
 
 @Injectable()
 export class JwtInterceptor implements HttpInterceptor {
@@ -13,9 +13,13 @@ export class JwtInterceptor implements HttpInterceptor {
   private refreshTokenSubject: BehaviorSubject<any> = new BehaviorSubject<any>(null);
 
   constructor(
-    private authService: AuthService,
+    private injector: Injector,
     private router: Router
   ) {}
+
+  private get authService(): AuthService {
+    return this.injector.get(AuthService);
+  }
 
   intercept(request: HttpRequest<any>, next: HttpHandler): Observable<HttpEvent<any>> {
     // Add auth header with jwt token if available
@@ -94,12 +98,12 @@ export class JwtInterceptor implements HttpInterceptor {
           }),
           catchError((error) => {
             this.isRefreshing = false;
-            this.authService.logout();
+            this.authService.logout(true);
             return throwError(() => error);
           })
         );
       } else {
-        this.authService.logout();
+        this.authService.logout(true);
         return throwError(() => new Error('No refresh token available'));
       }
     }

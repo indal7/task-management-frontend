@@ -171,7 +171,8 @@ export class CalendarComponent implements OnInit, OnDestroy {
       )
       .subscribe({
         next: (response) => {
-          this.tasks = response.data || [];
+          const apiTasks = response.data || [];
+          this.tasks = this.applyClientSideFilters(apiTasks, startDate, endDate);
           this.generateCalendar();
           console.log(`Calendar: Loaded ${this.tasks.length} tasks`);
         }
@@ -188,15 +189,62 @@ export class CalendarComponent implements OnInit, OnDestroy {
       filters.assigned_to_id = this.currentUser.id;
     }
 
-    if (this.filterOptions.priorities.length > 0) {
+    // Some deployed backends only accept a single enum value for filters.
+    // Send only single-value filters and apply multi-select filtering locally.
+    if (this.filterOptions.priorities.length === 1) {
       filters.priority = this.filterOptions.priorities.join(',');
     }
 
-    if (!this.filterOptions.showCompleted) {
+    if (!this.filterOptions.showCompleted && this.filterOptions.statuses.length === 1) {
       filters.status = this.filterOptions.statuses.join(',');
     }
 
     return filters;
+  }
+
+  private applyClientSideFilters(tasks: Task[], startDate: Date, endDate: Date): Task[] {
+    const start = this.startOfDay(startDate);
+    const end = this.endOfDay(endDate);
+
+    return tasks.filter(task => {
+      if (!task.due_date) {
+        return false;
+      }
+
+      const dueDate = new Date(task.due_date);
+      if (Number.isNaN(dueDate.getTime())) {
+        return false;
+      }
+
+      const inDateRange = dueDate >= start && dueDate <= end;
+      if (!inDateRange) {
+        return false;
+      }
+
+      const priorityMatch = this.filterOptions.priorities.length === 0
+        || this.filterOptions.priorities.includes(task.priority);
+      if (!priorityMatch) {
+        return false;
+      }
+
+      const statusMatch = this.filterOptions.showCompleted
+        ? true
+        : this.filterOptions.statuses.includes(task.status);
+
+      return statusMatch;
+    });
+  }
+
+  private startOfDay(date: Date): Date {
+    const day = new Date(date);
+    day.setHours(0, 0, 0, 0);
+    return day;
+  }
+
+  private endOfDay(date: Date): Date {
+    const day = new Date(date);
+    day.setHours(23, 59, 59, 999);
+    return day;
   }
 
   private formatDateForAPI(date: Date): string {

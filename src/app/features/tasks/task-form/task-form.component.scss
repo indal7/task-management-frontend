@@ -366,3 +366,96 @@
     color: var(--color-text-primary, #e0e0e0);
   }
 }
+
+/* Global theme normalization for task create/edit form */
+:host {
+  --tf-surface: var(--color-surface);
+  --tf-surface-alt: var(--color-surface-alt);
+  --tf-border: var(--color-border);
+  --tf-text: var(--color-text-primary);
+  --tf-muted: var(--color-text-secondary);
+  --tf-primary: var(--color-primary);
+  --tf-primary-dark: var(--color-primary-dark);
+  --tf-accent: var(--color-accent);
+  --tf-danger: var(--color-danger);
+}
+
+.task-form-container {
+  background-color: var(--tf-surface);
+  border: 1px solid var(--tf-border);
+  box-shadow: var(--shadow-md);
+}
+
+.task-form-container .form-header {
+  border-bottom-color: var(--tf-border);
+}
+
+.task-form-container .form-header h2,
+.task-form-container .form-section h3,
+.task-form-container .form-group label {
+  color: var(--tf-text);
+}
+
+.task-form-container .close-btn,
+.task-form-container .form-section,
+.task-form-container .form-control:disabled,
+.task-form-container .btn.btn-outline:hover {
+  background: var(--tf-surface-alt);
+}
+
+.task-form-container .close-btn,
+.task-form-container .form-control,
+.task-form-container .btn.btn-outline,
+.task-form-container .assignee-field .btn,
+.task-form-container .date-field .btn,
+.task-form-container .form-section {
+  border-color: var(--tf-border);
+}
+
+.task-form-container .close-btn,
+.task-form-container .form-text,
+.task-form-container .loading-container,
+.task-form-container .assignee-field .btn,
+.task-form-container .date-field .btn,
+.task-form-container .btn.btn-outline {
+  color: var(--tf-muted);
+}
+
+.task-form-container .form-control:focus,
+.task-form-container .assignee-field .btn:hover,
+.task-form-container .date-field .btn:hover,
+.task-form-container .btn.btn-outline:hover {
+  border-color: var(--tf-primary);
+  color: var(--tf-primary);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--tf-primary) 12%, transparent);
+}
+
+.task-form-container .error-banner {
+  background-color: color-mix(in srgb, var(--tf-danger) 12%, var(--tf-surface));
+  color: color-mix(in srgb, var(--tf-danger) 70%, #341919);
+  border-color: color-mix(in srgb, var(--tf-danger) 32%, var(--tf-surface));
+}
+
+.task-form-container .loading-container .spinner {
+  border-top-color: var(--tf-primary);
+}
+
+.task-form-container .btn.btn-primary {
+  background: linear-gradient(135deg, var(--tf-accent), var(--tf-primary));
+}
+
+.task-form-container .btn.btn-primary:hover:not(:disabled) {
+  background: linear-gradient(135deg, color-mix(in srgb, var(--tf-accent) 84%, #000), color-mix(in srgb, var(--tf-primary) 84%, #000));
+}
+
+.task-form-container .btn.btn-secondary {
+  background: color-mix(in srgb, var(--tf-muted) 84%, #000);
+}
+
+.task-form-container .btn.btn-secondary:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--tf-muted) 72%, #000);
+}
+
+.task-form-container .form-actions {
+  border-top-color: var(--tf-border);
+}

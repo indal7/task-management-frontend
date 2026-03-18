@@ -1,12 +1,14 @@
 // src/app/features/projects/project-management/project-management.component.ts
-import { Component, OnInit, OnDestroy } from '@angular/core';
+import { Component, OnInit, OnDestroy, HostListener } from '@angular/core';
 import { Router } from '@angular/router';
+import { ActivatedRoute } from '@angular/router';
 import { FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { Subject, debounceTime, distinctUntilChanged } from 'rxjs';
 import { takeUntil } from 'rxjs/operators';
 import { Project } from '../../../core/models/project.model';
 import { ProjectService } from '../../../core/services/project.service';
 import { AuthService, UserListItem } from '../../../core/services/auth.service';
+import { parseApiDate, formatDateIST } from '../../../core/utils/date-time.util';
 
 export interface ProjectWithStats extends Project {
   progress: number;
@@ -43,6 +45,7 @@ export class ProjectManagementComponent implements OnInit, OnDestroy {
   showCreateModal = false;
   showEditModal = false;
   selectedProject: ProjectWithStats | null = null;
+  openProjectMenuId: number | null = null;
 
   // Filters
   searchTerm = '';
@@ -78,6 +81,7 @@ export class ProjectManagementComponent implements OnInit, OnDestroy {
     private projectService: ProjectService,
     private authService: AuthService,
     private router: Router,
+    private route: ActivatedRoute,
     private fb: FormBuilder
   ) {
     this.createProjectForm = this.createForm();
@@ -104,6 +108,18 @@ export class ProjectManagementComponent implements OnInit, OnDestroy {
 
     this.loadProjects();
     this.loadUsers();
+
+    if (this.route.snapshot.routeConfig?.path === 'create') {
+      this.createProject();
+    }
+
+    this.route.queryParamMap
+      .pipe(takeUntil(this.destroy$))
+      .subscribe(params => {
+        if (params.get('create') === '1' && !this.showCreateModal) {
+          this.createProject();
+        }
+      });
   }
 
   ngOnDestroy(): void {
@@ -209,7 +225,8 @@ export class ProjectManagementComponent implements OnInit, OnDestroy {
 
     // Apply owner filter
     if (this.ownerFilter !== 'all') {
-      filtered = filtered.filter(project => project.created_by.id === parseInt(this.ownerFilter));
+      const ownerId = parseInt(this.ownerFilter, 10);
+      filtered = filtered.filter(project => project.created_by?.id === ownerId);
     }
 
     // Apply sorting
@@ -280,6 +297,34 @@ export class ProjectManagementComponent implements OnInit, OnDestroy {
 
   onViewModeChange(mode: 'grid' | 'list' | 'kanban'): void {
     this.viewMode = mode;
+    this.openProjectMenuId = null;
+  }
+
+  @HostListener('document:click')
+  onDocumentClick(): void {
+    this.openProjectMenuId = null;
+  }
+
+  toggleProjectMenu(projectId: number, event: Event): void {
+    event.stopPropagation();
+    this.openProjectMenuId = this.openProjectMenuId === projectId ? null : projectId;
+  }
+
+  onProjectMenuAction(action: 'view' | 'edit' | 'delete', project: ProjectWithStats, event: Event): void {
+    event.stopPropagation();
+    this.openProjectMenuId = null;
+
+    if (action === 'view') {
+      this.viewProject(project);
+      return;
+    }
+
+    if (action === 'edit') {
+      this.editProject(project, event);
+      return;
+    }
+
+    this.deleteProject(project, event);
   }
 
   // Project Actions
@@ -329,6 +374,12 @@ export class ProjectManagementComponent implements OnInit, OnDestroy {
   closeCreateModal(): void {
     this.showCreateModal = false;
     this.createProjectForm.reset();
+    this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: { create: null },
+      queryParamsHandling: 'merge',
+      replaceUrl: true
+    });
   }
 
   closeEditModal(): void {
@@ -428,12 +479,14 @@ export class ProjectManagementComponent implements OnInit, OnDestroy {
 
   formatDateForInput(date: string): string {
     if (!date) return '';
-    return new Date(date).toISOString().split('T')[0];
+    const parsedDate = parseApiDate(date);
+    return parsedDate ? parsedDate.toISOString().split('T')[0] : '';
   }
 
   formatDate(date: string | null): string {
     if (!date) return 'No date set';
-    return new Date(date).toLocaleDateString();
+    const parsedDate = parseApiDate(date);
+    return parsedDate ? formatDateIST(date) : 'No date set';
   }
 
   getInitials(name: string): string {

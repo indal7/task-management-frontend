@@ -1,7 +1,7 @@
 import { Injectable } from '@angular/core';
-import { HttpClient, HttpErrorResponse } from '@angular/common/http';
-import { BehaviorSubject, Observable, throwError } from 'rxjs';
-import { map, catchError, tap } from 'rxjs/operators';
+import { HttpClient, HttpErrorResponse, HttpParams } from '@angular/common/http';
+import { BehaviorSubject, Observable, Subscription, interval, throwError, of } from 'rxjs';
+import { map, catchError, tap, finalize, switchMap } from 'rxjs/operators';
 import { Router } from '@angular/router';
 
 import { API_ENDPOINTS, STORAGE_KEYS } from '../constants/api.constants';
@@ -16,6 +16,7 @@ import {
   AuthUser,
   ApiResponse
 } from '../models';
+import { UpdateUserRequest } from '../models/user.model';
 
 // FIXED: Add missing types that components expect
 export interface UserListItem {
@@ -27,6 +28,46 @@ export interface UserListItem {
   is_active: boolean;
 }
 
+export interface UserListResponse {
+  users: User[];
+  total: number;
+  page: number;
+  per_page: number;
+  total_pages: number;
+}
+
+export interface UserListFilters {
+  page?: number;
+  per_page?: number;
+  search?: string;
+  role?: string;
+  is_active?: boolean;
+}
+
+export interface ActivityLogEntry {
+  id: number;
+  user_id: number;
+  entity_type: string;
+  entity_id: number;
+  action: string;
+  details?: any;
+  created_at: string;
+}
+
+export interface UserActivityResponse {
+  activity: ActivityLogEntry[];
+  total: number;
+  page: number;
+  per_page: number;
+  total_pages: number;
+}
+
+export interface PresenceStatusResponse {
+  user_id: number;
+  is_online: boolean;
+  last_seen_at: string | null;
+}
+
 @Injectable({
   providedIn: 'root'
 })
@@ -34,6 +75,8 @@ export class AuthService {
   private currentUserSubject = new BehaviorSubject<User | null>(null);
   private isAuthenticatedSubject = new BehaviorSubject<boolean>(false);
   private loadingSubject = new BehaviorSubject<boolean>(false);
+  private logoutInProgress = false;
+  private presenceHeartbeatSubscription: Subscription | null = null;
 
   public currentUser$ = this.currentUserSubject.asObservable();
   public isAuthenticated$ = this.isAuthenticatedSubject.asObservable();
@@ -45,6 +88,7 @@ export class AuthService {
     private router: Router
   ) {
     this.initializeAuth();
+    this.registerUnloadLogoutBeacon();
   }
 
   private initializeAuth(): void {
@@ -54,6 +98,8 @@ export class AuthService {
     if (token && user) {
       this.currentUserSubject.next(user);
       this.isAuthenticatedSubject.next(true);
+      // Defer heartbeat start to avoid bootstrap-time interceptor DI cycles.
+      setTimeout(() => this.startPresenceHeartbeat(), 0);
     }
   }
 
@@ -77,7 +123,7 @@ export class AuthService {
           // console.log('Login successful:', authResponse);
         }),
         catchError(this.handleError.bind(this)),
-        tap(() => this.loadingSubject.next(false))
+        finalize(() => this.loadingSubject.next(false))
       );
   }
 
@@ -95,7 +141,7 @@ export class AuthService {
           }
         }),
         catchError(this.handleError.bind(this)),
-        tap(() => this.loadingSubject.next(false))
+        finalize(() => this.loadingSubject.next(false))
       );
   }
 
@@ -121,27 +167,39 @@ export class AuthService {
           this.handleAuthSuccess(authResponse);
         }),
         catchError(error => {
-          this.logout();
+          this.logout(true);
           return throwError(() => error);
         })
       );
   }
 
-  logout(): void {
+  logout(localOnly = false): void {
+    if (this.logoutInProgress) {
+      return;
+    }
+    this.logoutInProgress = true;
     this.loadingSubject.next(true);
-    
-    // Clear local storage
-    localStorage.removeItem(STORAGE_KEYS.TOKEN);
-    localStorage.removeItem(STORAGE_KEYS.REFRESH_TOKEN);
-    localStorage.removeItem(STORAGE_KEYS.USER);
-    
-    // Update subjects
-    this.currentUserSubject.next(null);
-    this.isAuthenticatedSubject.next(false);
-    this.loadingSubject.next(false);
-    
-    // Redirect to login
-    this.router.navigate(['/auth/login']);
+
+    if (localOnly) {
+      this.clearClientSessionAndRedirect();
+      return;
+    }
+
+    const token = this.getToken();
+    if (!token) {
+      this.clearClientSessionAndRedirect();
+      return;
+    }
+
+    this.http.post<ApiResponse>(API_ENDPOINTS.AUTH.LOGOUT, {
+      reason: 'manual_logout',
+      source: 'ui'
+    }).pipe(
+      finalize(() => this.clearClientSessionAndRedirect())
+    ).subscribe({
+      next: () => {},
+      error: () => {}
+    });
   }
 
   // 🔧 FIXED: Updated getCurrentUser to handle new response format
@@ -167,21 +225,27 @@ export class AuthService {
   updateProfile(profileData: ProfileUpdateRequest): Observable<User> {
     this.loadingSubject.next(true);
     
-    return this.http.put<ApiResponse<User>>(API_ENDPOINTS.AUTH.PROFILE, profileData)
+    return this.http.put<ApiResponse<any>>(API_ENDPOINTS.AUTH.PROFILE, profileData)
       .pipe(
         map(response => {
-          if (response.success && response.data) {
+          if (response.success && response.data !== undefined) {
             return response.data;
           } else {
             throw new Error(response.message || 'Failed to update profile');
           }
+        }),
+        switchMap((data: any) => {
+          if (data && typeof data === 'object' && 'id' in data) {
+            return of(data as User);
+          }
+          return this.getCurrentUser();
         }),
         tap(user => {
           this.currentUserSubject.next(user);
           this.storeUser(user);
         }),
         catchError(this.handleError.bind(this)),
-        tap(() => this.loadingSubject.next(false))
+        finalize(() => this.loadingSubject.next(false))
       );
   }
 
@@ -198,7 +262,7 @@ export class AuthService {
           return response;
         }),
         catchError(this.handleError.bind(this)),
-        tap(() => this.loadingSubject.next(false))
+        finalize(() => this.loadingSubject.next(false))
       );
   }
 
@@ -223,6 +287,103 @@ export class AuthService {
         }),
         catchError(this.handleError.bind(this))
       );
+  }
+
+  listUsers(filters?: UserListFilters): Observable<UserListResponse> {
+    let params = new HttpParams();
+    if (filters) {
+      Object.entries(filters).forEach(([key, value]) => {
+        if (value !== undefined && value !== null && value !== '') {
+          params = params.set(key, String(value));
+        }
+      });
+    }
+
+    return this.http.get<ApiResponse<UserListResponse>>(API_ENDPOINTS.USERS.BASE, { params }).pipe(
+      map(response => {
+        if (response.success && response.data) {
+          return response.data;
+        }
+        throw new Error(response.message || 'Failed to load users');
+      }),
+      catchError(this.handleError.bind(this))
+    );
+  }
+
+  getUserById(userId: number): Observable<User> {
+    return this.http.get<ApiResponse<User>>(API_ENDPOINTS.USERS.BY_ID(userId)).pipe(
+      map(response => {
+        if (response.success && response.data) {
+          return response.data;
+        }
+        throw new Error(response.message || 'Failed to load user details');
+      }),
+      catchError(this.handleError.bind(this))
+    );
+  }
+
+  updateUserByAdmin(userId: number, data: UpdateUserRequest): Observable<User> {
+    return this.http.put<ApiResponse<User>>(API_ENDPOINTS.USERS.BY_ID(userId), data).pipe(
+      map(response => {
+        if (response.success && response.data) {
+          return response.data;
+        }
+        throw new Error(response.message || 'Failed to update user');
+      }),
+      catchError(this.handleError.bind(this))
+    );
+  }
+
+  deactivateUser(userId: number): Observable<void> {
+    return this.http.delete<ApiResponse>(API_ENDPOINTS.USERS.BY_ID(userId)).pipe(
+      map(response => {
+        if (!response.success) {
+          throw new Error(response.message || 'Failed to deactivate user');
+        }
+        return void 0;
+      }),
+      catchError(this.handleError.bind(this))
+    );
+  }
+
+  activateUser(userId: number): Observable<void> {
+    return this.http.post<ApiResponse>(API_ENDPOINTS.USERS.ACTIVATE(userId), {}).pipe(
+      map(response => {
+        if (!response.success) {
+          throw new Error(response.message || 'Failed to activate user');
+        }
+        return void 0;
+      }),
+      catchError(this.handleError.bind(this))
+    );
+  }
+
+  getUserActivity(userId: number, page = 1, perPage = 20): Observable<UserActivityResponse> {
+    const params = new HttpParams()
+      .set('page', String(page))
+      .set('per_page', String(perPage));
+
+    return this.http.get<ApiResponse<UserActivityResponse>>(API_ENDPOINTS.ACTIVITY.USER(userId), { params }).pipe(
+      map(response => {
+        if (response.success && response.data) {
+          return response.data;
+        }
+        throw new Error(response.message || 'Failed to load user activity');
+      }),
+      catchError(this.handleError.bind(this))
+    );
+  }
+
+  getPresenceStatus(userId: number): Observable<PresenceStatusResponse> {
+    return this.http.get<ApiResponse<PresenceStatusResponse>>(API_ENDPOINTS.AUTH.PRESENCE_STATUS(userId)).pipe(
+      map(response => {
+        if (response.success && response.data) {
+          return response.data;
+        }
+        throw new Error(response.message || 'Failed to load presence status');
+      }),
+      catchError(this.handleError.bind(this))
+    );
   }
 
   // 🔧 FIXED: Updated ping to handle new response format
@@ -268,7 +429,7 @@ export class AuthService {
     
     // Check if token is expired
     if (this.isTokenExpired(token)) {
-      this.logout();
+      this.logout(true);
       return false;
     }
     
@@ -312,10 +473,94 @@ export class AuthService {
     // Update subjects
     this.currentUserSubject.next(authResponse.user);
     this.isAuthenticatedSubject.next(true);
+    this.startPresenceHeartbeat();
   }
 
   private storeUser(user: User): void {
     localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(user));
+  }
+
+  private registerUnloadLogoutBeacon(): void {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    window.addEventListener('pagehide', () => {
+      this.sendLogoutBeacon('pagehide');
+    });
+  }
+
+  private startPresenceHeartbeat(): void {
+    if (this.presenceHeartbeatSubscription) {
+      return;
+    }
+
+    // Keep online status warm while app is active.
+    this.presenceHeartbeatSubscription = interval(60000).subscribe(() => {
+      this.sendPresenceHeartbeat();
+    });
+  }
+
+  private stopPresenceHeartbeat(): void {
+    if (this.presenceHeartbeatSubscription) {
+      this.presenceHeartbeatSubscription.unsubscribe();
+      this.presenceHeartbeatSubscription = null;
+    }
+  }
+
+  private sendPresenceHeartbeat(): void {
+    const token = this.getToken();
+    const user = this.getCurrentUserValue();
+    if (!token || !user?.id) {
+      return;
+    }
+
+    this.http.post<ApiResponse>(API_ENDPOINTS.AUTH.PRESENCE_HEARTBEAT, {
+      source: 'web_heartbeat'
+    }).subscribe({
+      next: () => {},
+      error: () => {}
+    });
+  }
+
+  private sendLogoutBeacon(reason: string): void {
+    if (typeof navigator === 'undefined' || typeof navigator.sendBeacon !== 'function') {
+      return;
+    }
+
+    if (this.logoutInProgress) {
+      return;
+    }
+
+    const token = this.getToken();
+    const currentUser = this.getCurrentUserValue();
+    if (!token || !currentUser?.id) {
+      return;
+    }
+
+    const payload = {
+      token,
+      reason,
+      source: 'browser_beacon'
+    };
+
+    const blob = new Blob([JSON.stringify(payload)], { type: 'application/json' });
+    navigator.sendBeacon(API_ENDPOINTS.AUTH.LOGOUT, blob);
+  }
+
+  private clearClientSessionAndRedirect(): void {
+    this.stopPresenceHeartbeat();
+
+    localStorage.removeItem(STORAGE_KEYS.TOKEN);
+    localStorage.removeItem(STORAGE_KEYS.REFRESH_TOKEN);
+    localStorage.removeItem(STORAGE_KEYS.USER);
+
+    this.currentUserSubject.next(null);
+    this.isAuthenticatedSubject.next(false);
+    this.loadingSubject.next(false);
+    this.logoutInProgress = false;
+
+    this.router.navigate(['/auth/login']);
   }
 
   // 🔧 IMPROVED: Better error handling for new response format

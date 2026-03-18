@@ -58,7 +58,7 @@
   <!-- Navigation Menu -->
   <nav class="sidebar-nav">
     <ul class="nav-list">
-      <li *ngFor="let item of menuItems" class="nav-item">
+      <li *ngFor="let item of menuItems" class="nav-item" [hidden]="item.hidden">
         <!-- Main Menu Item -->
         <a 
           class="nav-link"
@@ -100,6 +100,7 @@
           [@slideInOut]>
           <li *ngFor="let child of item.children" class="sub-nav-item">
             <a 
+              *ngIf="!child.hidden"
               class="sub-nav-link"
               [class.active]="child.active"
               (click)="onChildMenuClick(item, child)">
@@ -114,24 +115,6 @@
 
   <!-- Sidebar Footer -->
   <div class="sidebar-footer">
-    <!-- Quick Actions -->
-    <div class="quick-actions" *ngIf="!isCollapsed">
-      <button 
-        mat-mini-fab 
-        color="primary" 
-        matTooltip="Create Task"
-        routerLink="/tasks/create">
-        <mat-icon>add</mat-icon>
-      </button>
-      <button 
-        mat-mini-fab 
-        color="accent" 
-        matTooltip="Quick Search"
-        (click)="openQuickSearch()">
-        <mat-icon>search</mat-icon>
-      </button>
-    </div>
-
     <!-- Logout Button -->
     <button 
       mat-button 

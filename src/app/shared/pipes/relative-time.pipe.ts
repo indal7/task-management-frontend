@@ -1,4 +1,5 @@
 import { Pipe, PipeTransform } from '@angular/core';
+import { parseApiDate } from '../../core/utils/date-time.util';
 
 @Pipe({
   name: 'relativeTime'
@@ -8,7 +9,7 @@ export class RelativeTimePipe implements PipeTransform {
     if (!date) return '';
 
     const now = new Date();
-    const inputDate = new Date(date);
+    const inputDate = parseApiDate(date) ?? new Date(date);
     const diffInSeconds = Math.floor((now.getTime() - inputDate.getTime()) / 1000);
 
     if (diffInSeconds < 60) {

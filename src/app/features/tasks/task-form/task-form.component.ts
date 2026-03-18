@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy } from '@angular/core';
+import { Component, OnInit, OnDestroy, EventEmitter, Input, Output } from '@angular/core';
 import { FormBuilder, FormGroup, FormArray, Validators } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { Subject } from 'rxjs';
@@ -32,6 +32,9 @@ export class TaskFormComponent implements OnInit, OnDestroy {
   isEditMode = false;
   isLoading = false;
   errorMessage = '';
+  @Input() dialogMode = false;
+  @Output() taskSaved = new EventEmitter<void>();
+  @Output() cancelled = new EventEmitter<void>();
 
   // 🔧 FIXED: Use API-compliant enum values
   priorityOptions: any[] = [];
@@ -167,8 +170,7 @@ export class TaskFormComponent implements OnInit, OnDestroy {
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (response) => {
-          this.projects = response as any || [];
-          // console.log('Projects loaded1:', this.projects);
+          this.projects = response.data || [];
         },
         error: (error) => {
           console.error('Error loading projects:', error);
@@ -347,6 +349,10 @@ export class TaskFormComponent implements OnInit, OnDestroy {
         next: (response) => {
           this.isLoading = false;
           // console.log('Task saved successfully:', response);
+          if (this.dialogMode) {
+            this.taskSaved.emit();
+            return;
+          }
           // Navigate back to task list
           this.router.navigate(['/tasks']);
         },      
@@ -370,6 +376,11 @@ export class TaskFormComponent implements OnInit, OnDestroy {
   }
 
   onCancel(): void {
+    if (this.dialogMode) {
+      this.cancelled.emit();
+      return;
+    }
+
     if (this.isEditMode && this.taskId) {
       this.router.navigate(['/tasks', this.taskId]);
     } else {

@@ -6,27 +6,163 @@
     
     <!-- Left Section: Search -->
     <div class="header-left">
-      <div class="search-container">
+      <div class="search-container"
+           clickOutside
+           (clickOutside)="closeSearchDropdown()">
+
         <mat-form-field appearance="outline" class="search-field">
           <mat-icon matPrefix>search</mat-icon>
-          <input 
-            matInput 
-            placeholder="Search tasks, projects..." 
-            [(ngModel)]="searchQuery"
+          <input
+            #searchInputRef
+            matInput
+            placeholder="Search tasks, projects, sprints, people..."
+            [value]="searchQuery"
+            (input)="onSearchInput($any($event.target).value)"
             (keyup.enter)="onSearch()"
-            (keyup.escape)="searchQuery = ''"
+            (keyup.escape)="searchQuery = ''; closeSearchDropdown()"
+            (focus)="searchQuery.length >= 2 && (showSearchDropdown = true)"
             maxlength="100"
-            aria-label="Search">
-          <button 
-            mat-icon-button 
-            matSuffix 
-            *ngIf="searchQuery"
-            (click)="searchQuery = ''; onSearch()"
+            name="global-search"
+            autocomplete="off"
+            autocorrect="off"
+            autocapitalize="off"
+            spellcheck="false"
+            data-lpignore="true"
+            aria-label="Search"
+            aria-haspopup="listbox"
+            [attr.aria-expanded]="showSearchDropdown">
+          <mat-icon matSuffix *ngIf="isSearching" class="spinning">refresh</mat-icon>
+          <button
+            mat-icon-button
+            matSuffix
+            *ngIf="searchQuery && !isSearching"
+            (click)="onSearchInput(''); closeSearchDropdown()"
             matTooltip="Clear search"
             aria-label="Clear search">
             <mat-icon>clear</mat-icon>
           </button>
         </mat-form-field>
+
+        <!-- Live Search Dropdown -->
+        <div class="search-dropdown" *ngIf="showSearchDropdown" role="listbox">
+
+          <!-- Searching spinner -->
+          <div class="search-state" *ngIf="isSearching">
+            <mat-icon class="spinning">refresh</mat-icon>
+            <span>Searching…</span>
+          </div>
+
+          <!-- No results -->
+          <div class="search-state no-results" *ngIf="!isSearching && searchResults && !hasSearchResults">
+            <mat-icon>search_off</mat-icon>
+            <span>No results for "<strong>{{ searchQuery }}</strong>"</span>
+          </div>
+
+          <!-- Tasks group -->
+          <div class="result-group" *ngIf="searchResults?.tasks?.length">
+            <div class="result-group-label">
+              <mat-icon>assignment</mat-icon> Tasks
+            </div>
+            <div
+              class="result-item"
+              *ngFor="let t of searchResults!.tasks"
+              (click)="onResultClick(t)"
+              role="option"
+              tabindex="0"
+              (keyup.enter)="onResultClick(t)">
+              <mat-icon class="result-icon task-icon">assignment</mat-icon>
+              <div class="result-text">
+                <span class="result-title">{{ t.title }}</span>
+                <span class="result-meta">
+                  <span class="text-muted" *ngIf="t.project_name">{{ t.project_name }}</span>
+                  <span class="badge status-badge">{{ t.status }}</span>
+                  <span class="badge priority-badge">{{ t.priority }}</span>
+                  <span class="badge type-badge" *ngIf="t.task_type">{{ t.task_type }}</span>
+                </span>
+              </div>
+              <mat-icon class="result-arrow">chevron_right</mat-icon>
+            </div>
+          </div>
+
+          <!-- Projects group -->
+          <div class="result-group" *ngIf="searchResults?.projects?.length">
+            <div class="result-group-label">
+              <mat-icon>folder</mat-icon> Projects
+            </div>
+            <div
+              class="result-item"
+              *ngFor="let p of searchResults!.projects"
+              (click)="onResultClick(p)"
+              role="option"
+              tabindex="0"
+              (keyup.enter)="onResultClick(p)">
+              <mat-icon class="result-icon project-icon">folder</mat-icon>
+              <div class="result-text">
+                <span class="result-title">{{ p.name }}</span>
+                <span class="result-meta">
+                  <span class="badge status-badge">{{ p.status }}</span>
+                  <span class="text-muted" *ngIf="p.team_members_count">{{ p.team_members_count }} members</span>
+                </span>
+              </div>
+              <mat-icon class="result-arrow">chevron_right</mat-icon>
+            </div>
+          </div>
+
+          <!-- Sprints group -->
+          <div class="result-group" *ngIf="searchResults?.sprints?.length">
+            <div class="result-group-label">
+              <mat-icon>track_changes</mat-icon> Sprints
+            </div>
+            <div
+              class="result-item"
+              *ngFor="let s of searchResults!.sprints"
+              (click)="onResultClick(s)"
+              role="option"
+              tabindex="0"
+              (keyup.enter)="onResultClick(s)">
+              <mat-icon class="result-icon sprint-icon">track_changes</mat-icon>
+              <div class="result-text">
+                <span class="result-title">{{ s.name }}</span>
+                <span class="result-meta">
+                  <span class="text-muted" *ngIf="s.project_name">{{ s.project_name }}</span>
+                  <span class="badge status-badge">{{ s.status }}</span>
+                  <span class="text-muted">{{ s.completion_percentage || 0 }}% complete</span>
+                </span>
+              </div>
+              <mat-icon class="result-arrow">chevron_right</mat-icon>
+            </div>
+          </div>
+
+          <!-- Users group -->
+          <div class="result-group" *ngIf="searchResults?.users?.length">
+            <div class="result-group-label">
+              <mat-icon>people</mat-icon> Team Members
+            </div>
+            <div
+              class="result-item"
+              *ngFor="let u of searchResults!.users"
+              (click)="onResultClick(u)"
+              role="option"
+              tabindex="0"
+              (keyup.enter)="onResultClick(u)">
+              <mat-icon class="result-icon user-icon">person</mat-icon>
+              <div class="result-text">
+                <span class="result-title">{{ u.name }}</span>
+                <span class="result-meta text-muted">{{ u.email }}</span>
+              </div>
+              <mat-icon class="result-arrow">chevron_right</mat-icon>
+            </div>
+          </div>
+
+          <!-- Footer: show all in tasks page -->
+          <div class="search-footer" *ngIf="hasSearchResults">
+            <button mat-button class="view-all-btn" (click)="onSearch()">
+              <mat-icon>open_in_new</mat-icon>
+              View all results for "{{ searchQuery }}"
+            </button>
+          </div>
+
+        </div><!-- /search-dropdown -->
       </div>
     </div>
 
@@ -68,6 +204,7 @@
           [class.has-notifications]="unreadNotificationCount > 0"
           (click)="onNotificationClick()"
           matTooltip="Notifications ({{ unreadNotificationCount }})"
+          [attr.aria-expanded]="showNotificationPanel"
           aria-label="Notifications">
           <mat-icon>notifications</mat-icon>
           <span 
@@ -110,20 +247,26 @@
 
           <div class="panel-content">
             <!-- Loading State -->
-            <div class="loading-state" *ngIf="isLoading">
+            <div class="loading-state" *ngIf="notificationsLoading">
               <mat-icon class="spinning">refresh</mat-icon>
               <p>Loading notifications...</p>
             </div>
 
+            <div class="no-notifications error-state" *ngIf="!notificationsLoading && notificationError">
+              <mat-icon>error_outline</mat-icon>
+              <p>Could not load notifications</p>
+              <small>{{ notificationError }}</small>
+            </div>
+
             <!-- No Notifications -->
-            <div class="no-notifications" *ngIf="!isLoading && unreadNotificationCount === 0">
+            <div class="no-notifications" *ngIf="!notificationsLoading && !notificationError && notifications.length === 0">
               <mat-icon>notifications_none</mat-icon>
-              <p>No new notifications</p>
-              <small>You're all caught up!</small>
+              <p>No notifications</p>
+              <small>You're all caught up.</small>
             </div>
             
             <!-- Notification List -->
-            <div class="notification-list" *ngIf="!isLoading && notifications.length > 0">
+            <div class="notification-list" *ngIf="!notificationsLoading && !notificationError && notifications.length > 0">
               <div 
                 class="notification-item"
                 *ngFor="let notification of notifications; trackBy: trackByNotificationId"
@@ -202,7 +345,7 @@
           <mat-icon class="dropdown-arrow">arrow_drop_down</mat-icon>
         </button>
 
-        <mat-menu #profileMenu="matMenu" class="profile-menu">
+        <mat-menu #profileMenu="matMenu" panelClass="profile-menu-panel">
           <!-- Profile Header in Menu -->
           <div class="profile-header" mat-menu-item disabled>
             <div class="profile-info">
@@ -230,13 +373,6 @@
             <span class="menu-badge" *ngIf="unreadNotificationCount > 0">
               {{ unreadNotificationCount }}
             </span>
-          </button>
-          
-          <mat-divider></mat-divider>
-          
-          <button mat-menu-item routerLink="/help">
-            <mat-icon>help</mat-icon>
-            <span>Help & Support</span>
           </button>
           
           <mat-divider></mat-divider>

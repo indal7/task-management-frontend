@@ -199,4 +199,14 @@
       Clear Filters
     </button>
   </div>
+
+  <div class="task-create-modal-overlay" *ngIf="showCreateTaskModal" (click)="closeCreateTaskModal()">
+    <div class="task-create-modal" (click)="$event.stopPropagation()">
+      <app-task-form
+        [dialogMode]="true"
+        (taskSaved)="onTaskCreatedFromModal()"
+        (cancelled)="closeCreateTaskModal()">
+      </app-task-form>
+    </div>
+  </div>
 </div>

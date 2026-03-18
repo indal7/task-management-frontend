@@ -7,13 +7,11 @@ import { AuthRoutingModule } from './auth-routing.module'; // ← Import this
 // Components
 import { LoginComponent } from './login/login.component';
 import { RegisterComponent } from './register/register.component';
-import { ProfileComponent } from './profile/profile.component';
 
 @NgModule({
   declarations: [
     LoginComponent,
-    RegisterComponent,
-    ProfileComponent
+    RegisterComponent
   ],
   imports: [
     SharedModule,

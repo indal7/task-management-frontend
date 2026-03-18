@@ -1,5 +1,5 @@
 // src/app/shared/components/sidebar/sidebar.component.ts - Enhanced with auth state
-import { Component, OnInit, OnDestroy, Output, EventEmitter } from '@angular/core';
+import { Component, OnInit, OnDestroy, Input, Output, EventEmitter } from '@angular/core';
 import { Router, NavigationEnd } from '@angular/router';
 import { Subject } from 'rxjs';
 import { takeUntil, filter } from 'rxjs/operators';
@@ -46,7 +46,12 @@ export class SidebarComponent implements OnInit, OnDestroy {
   
   // 🔧 NEW: Output event to notify parent component of toggle
   @Output() sidebarToggle = new EventEmitter<boolean>();
-  
+
+  /** Receive the parent's collapsed state so both stay in sync after page refreshes. */
+  @Input() set collapsed(value: boolean) {
+    this.isCollapsed = value;
+  }
+
   // 🔧 FIXED: Add authentication state tracking
   currentUser: User | null = null;
   isAuthenticated = false;
@@ -106,8 +111,7 @@ export class SidebarComponent implements OnInit, OnDestroy {
           label: 'Create Project', 
           route: '/projects/create', 
           active: false, 
-          hidden: false,
-          permissions: ['create_project']
+          hidden: false
         }
       ]
     },
@@ -431,7 +435,7 @@ export class SidebarComponent implements OnInit, OnDestroy {
       item.active = !item.active;
     } else {
       // Navigate to route
-      this.router.navigate([item.route]);
+      this.router.navigateByUrl(item.route);
       
       // Collapse sidebar on mobile after navigation
       if (this.isMobile()) {
@@ -452,7 +456,7 @@ export class SidebarComponent implements OnInit, OnDestroy {
       return;
     }
 
-    this.router.navigate([child.route]);
+    this.router.navigateByUrl(child.route);
     
     // Collapse sidebar on mobile after navigation
     if (this.isMobile()) {
@@ -476,16 +480,6 @@ export class SidebarComponent implements OnInit, OnDestroy {
     
     // console.log('Logging out user from sidebar:', this.currentUser?.email);
     this.authService.logout();
-  }
-
-  openQuickSearch(): void {
-    if (!this.isAuthenticated) {
-      console.warn('Quick search attempted while not authenticated');
-      return;
-    }
-    
-    // console.log('Quick search clicked');
-    // TODO: Implement quick search functionality
   }
 
   // Helper methods

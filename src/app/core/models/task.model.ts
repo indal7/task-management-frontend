@@ -101,23 +101,31 @@ export interface UpdateCommentRequest {
 
 export interface TimeLog {
   id: number;
-  hours_logged: number;
+  hours?: number;
+  hours_logged?: number;
   description?: string;
-  logged_by: User;
+  logged_by?: User;
+  user?: User;
+  user_id?: number;
   task_id: number;
   logged_at: string;
+  work_date?: string;
   created_at: string;
   updated_at: string;
 }
 
 export interface CreateTimeLogRequest {
+  hours?: number;
   hours_logged: number;
   description?: string;
   logged_at?: string;
+  work_date?: string;
 }
 
 export interface UpdateTimeLogRequest {
+  hours?: number;
   hours_logged?: number;
   description?: string;
   logged_at?: string;
+  work_date?: string;
 }

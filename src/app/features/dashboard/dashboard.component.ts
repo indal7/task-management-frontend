@@ -10,6 +10,7 @@ import { ProjectService } from '../../core/services/project.service';
 import { NotificationService } from '../../core/services/notification.service';
 import { EnumService } from '../../core/services/enum.service';
 import { User, Task, Project } from '../../core/models';
+import { parseApiDate } from '../../core/utils/date-time.util';
 
 @Component({
   selector: 'app-dashboard',
@@ -298,7 +299,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
     if (!date) return '';
 
     const now = new Date();
-    const past = new Date(date);
+    const past = parseApiDate(date) || new Date(date);
     const diffInSeconds = Math.floor((now.getTime() - past.getTime()) / 1000);
 
     if (diffInSeconds < 60) return 'Just now';

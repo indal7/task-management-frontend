@@ -1,16 +1,19 @@
-import { Component, OnInit, OnDestroy } from '@angular/core';
+import { Component, OnInit, OnDestroy, TemplateRef, ViewChild } from '@angular/core';
 import { Subject, forkJoin, of } from 'rxjs';
 import { takeUntil, catchError, map } from 'rxjs/operators';
+import { Router } from '@angular/router';
+import { MatDialog, MatDialogRef } from '@angular/material/dialog';
 
-import { AuthService, UserListItem } from '../../../core/services/auth.service';
+import { AuthService } from '../../../core/services/auth.service';
 import { TaskService } from '../../../core/services/task.service';
-import { User } from '../../../core/models';
+import { User, UpdateUserRequest, Task } from '../../../core/models';
 
 // 🔧 IMPROVED: Enhanced TeamMember interface with better type safety
 interface TeamMember {
   id: number;
   name: string;
   email: string;
+  rawRole: string;
   role: string;
   avatar_url?: string | null;
   department: string;
@@ -158,7 +161,7 @@ interface TeamFilters {
               <h3>{{ overloadedMembers }}</h3>
               <p>High Workload</p>
             </div>
-            <mat-icon [style.color]="overloadedMembers > 0 ? '#f44336' : '#4caf50'">warning</mat-icon>
+            <mat-icon [style.color]="overloadedMembers > 0 ? 'var(--color-danger)' : 'var(--color-success)'">warning</mat-icon>
           </mat-card-content>
         </mat-card>
       </div>
@@ -211,15 +214,15 @@ interface TeamFilters {
                   <span class="stat-label">Total</span>
                 </div>
                 <div class="stat-item">
-                  <span class="stat-number" style="color: #4caf50;">{{ member.tasksCount.completed }}</span>
+                  <span class="stat-number" style="color: var(--color-success);">{{ member.tasksCount.completed }}</span>
                   <span class="stat-label">Completed</span>
                 </div>
                 <div class="stat-item">
-                  <span class="stat-number" style="color: #2196f3;">{{ member.tasksCount.inProgress }}</span>
+                  <span class="stat-number" style="color: var(--color-primary);">{{ member.tasksCount.inProgress }}</span>
                   <span class="stat-label">In Progress</span>
                 </div>
                 <div class="stat-item" *ngIf="member.tasksCount.overdue > 0">
-                  <span class="stat-number" style="color: #f44336;">{{ member.tasksCount.overdue }}</span>
+                  <span class="stat-number" style="color: var(--color-danger);">{{ member.tasksCount.overdue }}</span>
                   <span class="stat-label">Overdue</span>
                 </div>
               </div>
@@ -276,8 +279,8 @@ interface TeamFilters {
               </button>
               <mat-divider></mat-divider>
               <button mat-menu-item (click)="removeMember(member)" class="warn-action">
-                <mat-icon>person_remove</mat-icon>
-                Remove from Team
+                <mat-icon>{{ member.isActive ? 'person_remove' : 'person_add' }}</mat-icon>
+                {{ member.isActive ? 'Deactivate User' : 'Activate User' }}
               </button>
             </mat-menu>
           </mat-card-actions>
@@ -305,9 +308,104 @@ interface TeamFilters {
           Invite Your First Member
         </button>
       </div>
+
+      <ng-template #assignTaskDialog>
+        <h2 mat-dialog-title>Assign Task</h2>
+        <mat-dialog-content>
+          <p *ngIf="selectedMember">Assign a task to <strong>{{ selectedMember.name }}</strong>.</p>
+
+          <div *ngIf="assignDialogLoadingTasks" style="display:flex; align-items:center; gap:0.5rem; margin: 0.5rem 0 1rem;">
+            <mat-icon class="spinning">refresh</mat-icon>
+            <span>Loading tasks...</span>
+          </div>
+
+          <mat-form-field appearance="outline" style="width: 100%; margin-top: 0.5rem;">
+            <mat-label>Search task</mat-label>
+            <input
+              matInput
+              [(ngModel)]="taskSearchQuery"
+              (input)="onTaskSearchInput()"
+              [matAutocomplete]="taskSearchAuto"
+              placeholder="Search by task ID, name, status, priority">
+            <mat-icon matPrefix>search</mat-icon>
+          </mat-form-field>
+
+          <mat-autocomplete #taskSearchAuto="matAutocomplete" (optionSelected)="onTaskOptionSelected($event.option.value)">
+            <mat-option *ngFor="let task of taskSuggestions" [value]="task.id">
+              <div style="display:flex; flex-direction:column; line-height:1.35;">
+                <span><strong>#{{ task.id }}</strong> - {{ task.title }}</span>
+                <small style="opacity:0.75;">
+                  {{ task.status }} | {{ task.priority }} | {{ task.assigned_to?.name || 'Unassigned' }}
+                </small>
+                <small style="opacity:0.72;">
+                  {{ task.project?.name || 'No Project' }} | Due: {{ task.due_date ? (task.due_date | date:'mediumDate') : 'No due date' }}
+                </small>
+              </div>
+            </mat-option>
+          </mat-autocomplete>
+
+          <mat-form-field appearance="outline" style="width: 100%;">
+            <mat-label>Select task</mat-label>
+            <mat-select [(value)]="assignTaskIdInput" [disabled]="assignDialogLoadingTasks">
+              <mat-option *ngFor="let task of filteredAssignableTasks" [value]="task.id">
+                #{{ task.id }} - {{ task.title }} ({{ task.status }}, {{ task.priority }})
+                <span style="opacity:0.7"> - {{ task.assigned_to?.name || 'Unassigned' }}</span>
+              </mat-option>
+            </mat-select>
+          </mat-form-field>
+
+          <p *ngIf="!assignDialogLoadingTasks && filteredAssignableTasks.length === 0" style="opacity:0.75; margin-top: -0.5rem;">
+            No matching tasks found.
+          </p>
+
+          <p class="dialog-error" *ngIf="dialogError">{{ dialogError }}</p>
+        </mat-dialog-content>
+        <mat-dialog-actions align="end">
+          <button mat-button (click)="closeDialog()">Cancel</button>
+          <button mat-raised-button color="primary" [disabled]="dialogLoading || assignDialogLoadingTasks" (click)="submitAssignTask()">Assign</button>
+        </mat-dialog-actions>
+      </ng-template>
+
+      <ng-template #editMemberDialog>
+        <h2 mat-dialog-title>Edit Member</h2>
+        <mat-dialog-content>
+          <mat-form-field appearance="outline" style="width: 100%; margin-top: 0.5rem;">
+            <mat-label>Name</mat-label>
+            <input matInput [(ngModel)]="editMemberName" placeholder="Enter full name">
+          </mat-form-field>
+
+          <mat-form-field appearance="outline" style="width: 100%;">
+            <mat-label>Role</mat-label>
+            <mat-select [(value)]="editMemberRole">
+              <mat-option *ngFor="let role of availableRoles" [value]="role">{{ role }}</mat-option>
+            </mat-select>
+          </mat-form-field>
+
+          <p class="dialog-error" *ngIf="dialogError">{{ dialogError }}</p>
+        </mat-dialog-content>
+        <mat-dialog-actions align="end">
+          <button mat-button (click)="closeDialog()">Cancel</button>
+          <button mat-raised-button color="primary" [disabled]="dialogLoading" (click)="submitEditMember()">Save</button>
+        </mat-dialog-actions>
+      </ng-template>
     </div>
   `,
   styles: [`
+    :host {
+      --team-text-primary: var(--color-text-primary);
+      --team-text-secondary: var(--color-text-secondary);
+      --team-text-muted: var(--color-text-muted);
+      --team-primary: var(--color-primary);
+      --team-accent: var(--color-accent);
+      --team-surface: var(--color-surface);
+      --team-surface-alt: var(--color-surface-alt);
+      --team-border: var(--color-border);
+      --team-success: var(--color-success);
+      --team-warning: var(--color-warning);
+      --team-danger: var(--color-danger);
+      --team-shadow: 0 8px 25px rgba(15, 23, 42, 0.12);
+    }
+
     .team-container {
       padding: 2rem;
       max-width: 1400px;
@@ -332,7 +430,7 @@ interface TeamFilters {
 
     .header-content p {
       margin: 0;
-      color: #666;
+      color: var(--team-text-secondary);
     }
 
     .header-actions {
@@ -347,6 +445,8 @@ interface TeamFilters {
 
     .filters-card {
       border-radius: 12px;
+      background: var(--team-surface);
+      border: 1px solid var(--team-border);
     }
 
     .filter-row {
@@ -389,12 +489,12 @@ interface TeamFilters {
       margin: 0;
       font-size: 2rem;
       font-weight: 700;
-      color: #667eea;
+      color: var(--team-primary);
     }
 
     .stat-info p {
       margin: 0.5rem 0 0;
-      color: #666;
+      color: var(--team-text-secondary);
       font-size: 0.9rem;
     }
 
@@ -402,7 +502,7 @@ interface TeamFilters {
       font-size: 2rem;
       width: 2rem;
       height: 2rem;
-      color: #667eea;
+      color: var(--team-primary);
       opacity: 0.7;
     }
 
@@ -415,11 +515,13 @@ interface TeamFilters {
     .member-card {
       border-radius: 12px;
       transition: transform 0.3s ease, box-shadow 0.3s ease;
+      background: var(--team-surface);
+      border: 1px solid var(--team-border);
     }
 
     .member-card:hover {
       transform: translateY(-4px);
-      box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+      box-shadow: var(--team-shadow);
     }
 
     .member-avatar {
@@ -441,7 +543,7 @@ interface TeamFilters {
       display: flex;
       align-items: center;
       justify-content: center;
-      background: linear-gradient(45deg, #667eea, #764ba2);
+      background: linear-gradient(45deg, var(--team-primary), var(--team-accent));
       color: white;
       font-weight: 600;
       font-size: 1.2rem;
@@ -461,9 +563,9 @@ interface TeamFilters {
       border-radius: 50%;
     }
 
-    .member-status.active .status-dot { background: #10b981; }
-    .member-status.away .status-dot { background: #f59e0b; }
-    .member-status.offline .status-dot { background: #6b7280; }
+    .member-status.active .status-dot { background: var(--team-success); }
+    .member-status.away .status-dot { background: var(--team-warning); }
+    .member-status.offline .status-dot { background: var(--team-text-muted); }
 
     .member-info {
       margin-bottom: 1rem;
@@ -475,7 +577,7 @@ interface TeamFilters {
       gap: 0.5rem;
       margin-bottom: 0.5rem;
       font-size: 0.9rem;
-      color: #666;
+      color: var(--team-text-secondary);
     }
 
     .info-item mat-icon {
@@ -492,7 +594,7 @@ interface TeamFilters {
       margin: 0 0 0.5rem;
       font-size: 0.9rem;
       font-weight: 600;
-      color: #333;
+      color: var(--team-text-primary);
     }
 
     .stats-grid {
@@ -516,7 +618,7 @@ interface TeamFilters {
 
     .stat-label {
       font-size: 0.7rem;
-      color: #666;
+      color: var(--team-text-secondary);
       margin-top: 0.2rem;
     }
 
@@ -547,13 +649,13 @@ interface TeamFilters {
     }
 
     .warn-action {
-      color: #f44336 !important;
+      color: var(--team-danger) !important;
     }
 
     .empty-state {
       text-align: center;
       padding: 4rem 2rem;
-      color: #666;
+      color: var(--team-text-secondary);
     }
 
     .empty-state mat-icon {
@@ -600,6 +702,10 @@ interface TeamFilters {
 })
 export class TeamManagementComponent implements OnInit, OnDestroy {
   private destroy$ = new Subject<void>();
+  private dialogRef: MatDialogRef<any> | null = null;
+
+  @ViewChild('assignTaskDialog') assignTaskDialog!: TemplateRef<any>;
+  @ViewChild('editMemberDialog') editMemberDialog!: TemplateRef<any>;
 
   teamMembers: TeamMember[] = [];
   filteredMembers: TeamMember[] = [];
@@ -622,9 +728,37 @@ export class TeamManagementComponent implements OnInit, OnDestroy {
   averageWorkload = 0;
   overloadedMembers = 0;
 
+  selectedMember: TeamMember | null = null;
+  assignTaskIdInput: number | null = null;
+  assignDialogLoadingTasks = false;
+  taskSearchQuery = '';
+  assignableTasks: Task[] = [];
+  filteredAssignableTasks: Task[] = [];
+  taskSuggestions: Task[] = [];
+  editMemberName = '';
+  editMemberRole = '';
+  dialogError: string | null = null;
+  dialogLoading = false;
+
+  availableRoles: string[] = [
+    'ADMIN',
+    'PROJECT_MANAGER',
+    'TEAM_LEAD',
+    'SENIOR_DEVELOPER',
+    'DEVELOPER',
+    'QA_ENGINEER',
+    'DEVOPS_ENGINEER',
+    'UI_UX_DESIGNER',
+    'BUSINESS_ANALYST',
+    'PRODUCT_OWNER',
+    'SCRUM_MASTER'
+  ];
+
   constructor(
     private authService: AuthService,
-    private taskService: TaskService
+    private taskService: TaskService,
+    private router: Router,
+    private dialog: MatDialog
   ) {}
 
   ngOnInit(): void {
@@ -643,53 +777,61 @@ export class TeamManagementComponent implements OnInit, OnDestroy {
 
     // console.log('🔄 Loading team members...');
 
-    this.authService.getUsers()
+    this.authService.listUsers({ per_page: 100 })
       .pipe(
         takeUntil(this.destroy$),
         catchError(error => {
           console.error('❌ Failed to load users:', error);
           this.errorMessage = 'Failed to load team members. Please try again.';
           this.isLoading = false;
-          return of([]);
+          return of({ users: [], total: 0, page: 1, per_page: 100, total_pages: 0 });
         })
       )
       .subscribe({
-        next: (users: UserListItem[]) => {
+        next: ({ users }) => {
           // console.log('✅ Users loaded:', users);
           this.teamMembers = this.transformUsersToTeamMembers(users);
           this.extractFilterOptions();
+          this.loadPresenceForMembers();
           this.applyFilters();
           this.calculateStats();
           this.isLoading = false;
+          this.loadTaskStatsForMembers();
         }
       });
   }
 
-  // 🔧 IMPROVED: Better data transformation with safety checks
-  private transformUsersToTeamMembers(users: UserListItem[]): TeamMember[] {
+  private transformUsersToTeamMembers(users: User[]): TeamMember[] {
     return users.map(user => {
       const role = user.role || 'DEVELOPER';
       const name = user.name || 'Unknown User';
+      const lastLogin = user.last_login || undefined;
+      const joinDate = user.created_at || new Date().toISOString();
+      const isAway = !!lastLogin && (Date.now() - new Date(lastLogin).getTime()) > (1000 * 60 * 60 * 24 * 3);
+      const presenceStatus: TeamMember['status'] = !user.is_active
+        ? 'offline'
+        : (isAway ? 'away' : 'active');
       
       return {
         id: user.id,
         name: name,
         email: user.email,
+        rawRole: role,
         role: this.formatRole(role),
         avatar_url: user.avatar_url || null,
         department: this.getDepartmentFromRole(role),
-        joinDate: new Date().toISOString(), // TODO: Get real join date from API
-        status: user.is_active ? 'active' : 'offline',
+        joinDate,
+        status: presenceStatus,
         tasksCount: {
-          total: this.getRandomTaskCount(),
-          completed: this.getRandomTaskCount(0, 15),
-          inProgress: this.getRandomTaskCount(0, 8),
-          overdue: this.getRandomTaskCount(0, 3)
+          total: 0,
+          completed: 0,
+          inProgress: 0,
+          overdue: 0
         },
-        skills: this.getSkillsFromRole(role),
-        workload: this.calculateWorkload(),
+        skills: user.skills && user.skills.length > 0 ? user.skills : this.getSkillsFromRole(role),
+        workload: 0,
         isActive: user.is_active || false,
-        lastLogin: new Date().toISOString() // TODO: Get real last login from API
+        lastLogin
       };
     });
   }
@@ -730,13 +872,96 @@ export class TeamManagementComponent implements OnInit, OnDestroy {
     return skillSets[role] || ['Communication', 'Teamwork'];
   }
 
-  private getRandomTaskCount(min: number = 0, max: number = 20): number {
-    return Math.floor(Math.random() * (max - min + 1)) + min;
+  private loadTaskStatsForMembers(): void {
+    if (!this.teamMembers.length) {
+      return;
+    }
+
+    const requests = this.teamMembers.map(member => {
+      return forkJoin({
+        total: this.taskService.getTasks({ assigned_to_id: member.id, per_page: 200 }).pipe(catchError(() => of({ data: [], total: 0, page: 1, per_page: 200, total_pages: 0, has_next: false, has_prev: false } as any))),
+        completed: this.taskService.getTasks({ assigned_to_id: member.id, status: 'DONE', per_page: 200 }).pipe(catchError(() => of({ data: [], total: 0, page: 1, per_page: 200, total_pages: 0, has_next: false, has_prev: false } as any))),
+        inProgress: this.taskService.getTasks({ assigned_to_id: member.id, status: 'IN_PROGRESS,IN_REVIEW,TESTING,BLOCKED', per_page: 200 }).pipe(catchError(() => of({ data: [], total: 0, page: 1, per_page: 200, total_pages: 0, has_next: false, has_prev: false } as any))),
+        overdue: this.taskService.getTasks({ assigned_to_id: member.id, overdue: true, per_page: 200 }).pipe(catchError(() => of({ data: [], total: 0, page: 1, per_page: 200, total_pages: 0, has_next: false, has_prev: false } as any)))
+      }).pipe(
+        map(stats => ({
+          memberId: member.id,
+          total: stats.total.total || 0,
+          completed: stats.completed.total || 0,
+          inProgress: stats.inProgress.total || 0,
+          overdue: stats.overdue.total || 0
+        }))
+      );
+    });
+
+    forkJoin(requests).pipe(takeUntil(this.destroy$)).subscribe((stats) => {
+      const statsMap = new Map(stats.map(s => [s.memberId, s]));
+      this.teamMembers = this.teamMembers.map(member => {
+        const memberStats = statsMap.get(member.id);
+        if (!memberStats) {
+          return member;
+        }
+
+        const computedWorkload = Math.min(100, Math.max(0, memberStats.inProgress * 20 + memberStats.overdue * 15));
+
+        return {
+          ...member,
+          tasksCount: {
+            total: memberStats.total,
+            completed: memberStats.completed,
+            inProgress: memberStats.inProgress,
+            overdue: memberStats.overdue
+          },
+          workload: computedWorkload
+        } as TeamMember;
+      });
+
+      this.applyFilters();
+    });
   }
 
-  private calculateWorkload(): number {
-    // Generate realistic workload between 40-100%
-    return Math.floor(Math.random() * 60) + 40;
+  private loadPresenceForMembers(): void {
+    if (!this.teamMembers.length) {
+      return;
+    }
+
+    const requests = this.teamMembers.map(member =>
+      this.authService.getPresenceStatus(member.id).pipe(
+        map(presence => ({ memberId: member.id, isOnline: presence.is_online })),
+        catchError(() => of({ memberId: member.id, isOnline: false }))
+      )
+    );
+
+    forkJoin(requests)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe((presenceStatuses) => {
+        const presenceMap = new Map(presenceStatuses.map(p => [p.memberId, p.isOnline]));
+
+        this.teamMembers = this.teamMembers.map(member => {
+          const isOnline = presenceMap.get(member.id) || false;
+          return {
+            ...member,
+            status: this.deriveStatusFromPresence(member, isOnline)
+          };
+        });
+
+        this.applyFilters();
+      });
+  }
+
+  private deriveStatusFromPresence(member: TeamMember, isOnline: boolean): TeamMember['status'] {
+    if (!member.isActive) {
+      return 'offline';
+    }
+
+    if (isOnline) {
+      return 'active';
+    }
+
+    const hasRecentLogin = !!member.lastLogin &&
+      (Date.now() - new Date(member.lastLogin).getTime()) <= (1000 * 60 * 60 * 24 * 3);
+
+    return hasRecentLogin ? 'away' : 'offline';
   }
 
   // 🔧 NEW: Extract filter options from data
@@ -809,9 +1034,9 @@ export class TeamManagementComponent implements OnInit, OnDestroy {
   }
 
   getWorkloadTextColor(workload: number): string {
-    if (workload >= 90) return '#f44336';
-    if (workload >= 75) return '#ff9800';
-    return '#4caf50';
+    if (workload >= 90) return 'var(--color-danger)';
+    if (workload >= 75) return 'var(--color-warning)';
+    return 'var(--color-success)';
   }
 
   // Action Methods
@@ -821,23 +1046,35 @@ export class TeamManagementComponent implements OnInit, OnDestroy {
   }
 
   viewMemberDetails(member: TeamMember): void {
-    // console.log('🔍 View member details:', member);
-    // TODO: Navigate to member details or open dialog
+    this.router.navigate(['/team'], { queryParams: { member_id: member.id } });
   }
 
   assignTasks(member: TeamMember): void {
-    // console.log('📋 Assign tasks to:', member.name);
-    // TODO: Open task assignment dialog
+    this.selectedMember = member;
+    this.assignTaskIdInput = null;
+    this.taskSearchQuery = '';
+    this.assignableTasks = [];
+    this.filteredAssignableTasks = [];
+    this.dialogError = null;
+    this.dialogRef = this.dialog.open(this.assignTaskDialog, { width: '680px' });
+    this.loadAssignableTasks();
   }
 
   viewMemberTasks(member: TeamMember): void {
-    // console.log('📋 View tasks for:', member.name);
-    // TODO: Navigate to tasks filtered by this member
+    this.router.navigate(['/tasks'], { queryParams: { assigned_to_id: member.id } });
   }
 
   editMember(member: TeamMember): void {
-    // console.log('✏️ Edit member:', member.name);
-    // TODO: Open edit member dialog
+    if (!this.authService.hasRole('ADMIN')) {
+      alert('Only admin can edit users.');
+      return;
+    }
+
+    this.selectedMember = member;
+    this.editMemberName = member.name;
+    this.editMemberRole = member.rawRole;
+    this.dialogError = null;
+    this.dialogRef = this.dialog.open(this.editMemberDialog, { width: '460px' });
   }
 
   sendMessage(member: TeamMember): void {
@@ -846,12 +1083,154 @@ export class TeamManagementComponent implements OnInit, OnDestroy {
   }
 
   removeMember(member: TeamMember): void {
-    if (confirm(`Are you sure you want to remove ${member.name} from the team?`)) {
-      // console.log('❌ Remove member:', member.name);
-      // TODO: Implement member removal API call
-      // For now, remove from local array
-      this.teamMembers = this.teamMembers.filter(m => m.id !== member.id);
-      this.applyFilters();
+    if (!this.authService.hasRole('ADMIN')) {
+      alert('Only admin can activate/deactivate users.');
+      return;
     }
+
+    const action = member.isActive ? 'deactivate' : 'activate';
+    if (confirm(`Are you sure you want to ${action} ${member.name}?`)) {
+      const request$ = member.isActive
+        ? this.authService.deactivateUser(member.id)
+        : this.authService.activateUser(member.id);
+
+      request$.pipe(takeUntil(this.destroy$)).subscribe({
+        next: () => {
+          alert(`User ${action}d successfully.`);
+          this.loadTeamMembers();
+        },
+        error: (error) => {
+          alert(error?.message || `Failed to ${action} user.`);
+        }
+      });
+    }
+  }
+
+  closeDialog(): void {
+    this.dialogLoading = false;
+    this.assignDialogLoadingTasks = false;
+    this.dialogError = null;
+    this.dialogRef?.close();
+    this.dialogRef = null;
+  }
+
+  private loadAssignableTasks(): void {
+    this.assignDialogLoadingTasks = true;
+    this.taskService.getTasks({ per_page: 200, status: 'BACKLOG,TODO,IN_PROGRESS,IN_REVIEW,TESTING,BLOCKED' })
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: response => {
+          this.assignableTasks = response.data || [];
+          this.applyTaskFilter();
+          this.assignDialogLoadingTasks = false;
+        },
+        error: (error) => {
+          this.assignDialogLoadingTasks = false;
+          this.dialogError = error?.message || 'Failed to load tasks list.';
+        }
+      });
+  }
+
+  onTaskSearchInput(): void {
+    this.assignTaskIdInput = null;
+    this.applyTaskFilter();
+  }
+
+  onTaskOptionSelected(taskId: number): void {
+    const selectedTask = this.assignableTasks.find(task => task.id === taskId);
+    if (!selectedTask) {
+      this.assignTaskIdInput = null;
+      return;
+    }
+
+    this.assignTaskIdInput = selectedTask.id;
+    this.taskSearchQuery = `#${selectedTask.id} - ${selectedTask.title}`;
+  }
+
+  applyTaskFilter(): void {
+    const query = (this.taskSearchQuery || '').trim().toLowerCase();
+    if (!query) {
+      this.filteredAssignableTasks = [...this.assignableTasks];
+      this.taskSuggestions = this.filteredAssignableTasks.slice(0, 8);
+      return;
+    }
+
+    this.filteredAssignableTasks = this.assignableTasks.filter(task => {
+      const haystack = [
+        task.id,
+        task.title,
+        task.status,
+        task.priority,
+        task.task_type,
+        task.assigned_to?.name || '',
+        task.project?.name || '',
+        task.due_date || ''
+      ].join(' ').toLowerCase();
+      return haystack.includes(query);
+    });
+
+    this.taskSuggestions = this.filteredAssignableTasks.slice(0, 8);
+  }
+
+  submitAssignTask(): void {
+    if (!this.selectedMember) {
+      this.dialogError = 'No team member selected.';
+      return;
+    }
+
+    const taskId = Number(this.assignTaskIdInput);
+    if (!Number.isFinite(taskId) || taskId <= 0) {
+      this.dialogError = 'Please select a valid task.';
+      return;
+    }
+
+    this.dialogLoading = true;
+    this.dialogError = null;
+    this.taskService.assignTask(taskId, { assigned_to_id: this.selectedMember.id }).pipe(takeUntil(this.destroy$)).subscribe({
+      next: () => {
+        this.closeDialog();
+        this.loadTaskStatsForMembers();
+      },
+      error: (error) => {
+        this.dialogLoading = false;
+        this.dialogError = error?.message || 'Failed to assign task.';
+      }
+    });
+  }
+
+  submitEditMember(): void {
+    if (!this.selectedMember) {
+      this.dialogError = 'No team member selected.';
+      return;
+    }
+
+    const updatedName = this.editMemberName.trim();
+    const updatedRole = this.editMemberRole.trim().toUpperCase();
+
+    const updatePayload: UpdateUserRequest = {};
+    if (updatedName && updatedName !== this.selectedMember.name) {
+      updatePayload.name = updatedName;
+    }
+    if (updatedRole && updatedRole !== this.selectedMember.rawRole) {
+      updatePayload.role = updatedRole;
+    }
+
+    if (!Object.keys(updatePayload).length) {
+      this.closeDialog();
+      return;
+    }
+
+    this.dialogLoading = true;
+    this.dialogError = null;
+    this.authService.updateUserByAdmin(this.selectedMember.id, updatePayload).pipe(takeUntil(this.destroy$)).subscribe({
+      next: () => {
+        this.closeDialog();
+        this.loadTeamMembers();
+      },
+      error: (error) => {
+        this.dialogLoading = false;
+        this.dialogError = error?.message || 'Failed to update user.';
+      }
+    });
   }
 }

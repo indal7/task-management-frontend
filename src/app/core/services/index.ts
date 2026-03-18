@@ -9,6 +9,7 @@ export { NotificationService } from './notification.service';
 export { AnalyticsService } from './analytics.service';
 export { EnumService } from './enum.service';
 export { LayoutService } from './layout.service';
+export { AppearanceService } from './appearance.service';
 export { ErrorHandlerService } from './error-handler.service';
 
 // Export service filter types

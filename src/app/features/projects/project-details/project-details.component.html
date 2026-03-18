@@ -1,0 +1,180 @@
+<div class="project-details-page">
+  <div class="details-header">
+    <button class="ghost-btn" (click)="goBackToProjects()" type="button">
+      <i class="material-icons">arrow_back</i>
+      Back to Projects
+    </button>
+
+    <div class="header-actions" *ngIf="project">
+      <button class="outline-btn" type="button" (click)="goToTasks()">
+        <i class="material-icons">task</i>
+        View Tasks
+      </button>
+    </div>
+  </div>
+
+  <div class="details-loading" *ngIf="isLoading">
+    <i class="material-icons spin">autorenew</i>
+    <span>Loading project details...</span>
+  </div>
+
+  <div class="details-error" *ngIf="errorMessage && !isLoading">
+    <i class="material-icons">error</i>
+    <span>{{ errorMessage }}</span>
+  </div>
+
+  <ng-container *ngIf="project && !isLoading">
+    <section class="hero-card">
+      <div class="hero-main">
+        <p class="eyebrow">Project</p>
+        <h1>{{ project.name }}</h1>
+        <p class="description">{{ project.description || 'No description available.' }}</p>
+
+        <div class="meta-row">
+          <span class="status-pill">{{ getStatusLabel(project.status) }}</span>
+          <span class="meta-chip"><i class="material-icons">schedule</i>{{ getDaysUntilEndDate() }}</span>
+          <span class="meta-chip"><i class="material-icons">groups</i>{{ members.length }} members</span>
+        </div>
+      </div>
+
+      <div class="hero-progress">
+        <div class="progress-value">{{ getProgressPercent() }}%</div>
+        <div class="progress-label">Completion</div>
+        <div class="progress-bar">
+          <div class="progress-fill" [style.width.%]="getProgressPercent()"></div>
+        </div>
+      </div>
+    </section>
+
+    <nav class="details-tabs" aria-label="Project sections">
+      <button type="button" class="tab-btn" [class.active]="activeTab === 'overview'" (click)="setActiveTab('overview')">Overview</button>
+      <button type="button" class="tab-btn" [class.active]="activeTab === 'tasks'" (click)="setActiveTab('tasks')">Tasks</button>
+      <button type="button" class="tab-btn" [class.active]="activeTab === 'sprints'" (click)="setActiveTab('sprints')">Sprints</button>
+      <button type="button" class="tab-btn" [class.active]="activeTab === 'team'" (click)="setActiveTab('team')">Team</button>
+      <button type="button" class="tab-btn" [class.active]="activeTab === 'activity'" (click)="setActiveTab('activity')">Activity</button>
+    </nav>
+
+    <section class="stats-grid" *ngIf="activeTab === 'overview'">
+      <article class="stat-card">
+        <p>Total Tasks</p>
+        <h3>{{ project.tasks_count || 0 }}</h3>
+      </article>
+      <article class="stat-card">
+        <p>Completed Tasks</p>
+        <h3>{{ project.completed_tasks_count || 0 }}</h3>
+      </article>
+      <article class="stat-card">
+        <p>Total Sprints</p>
+        <h3>{{ project.sprints_count || 0 }}</h3>
+      </article>
+      <article class="stat-card">
+        <p>Active Sprints</p>
+        <h3>{{ project.active_sprints_count || 0 }}</h3>
+      </article>
+      <article class="stat-card">
+        <p>Start Date</p>
+        <h3>{{ formatDate(project.start_date) }}</h3>
+      </article>
+      <article class="stat-card">
+        <p>End Date</p>
+        <h3>{{ formatDate(project.end_date) }}</h3>
+      </article>
+      <article class="stat-card">
+        <p>Budget</p>
+        <h3>{{ project.budget ? (project.budget | currency) : 'Not set' }}</h3>
+      </article>
+      <article class="stat-card">
+        <p>Project Manager</p>
+        <h3>{{ project.project_manager?.name || 'Not assigned' }}</h3>
+      </article>
+    </section>
+
+    <section class="content-card" *ngIf="activeTab === 'tasks'">
+      <div class="section-title">
+        <h2>Task Summary</h2>
+      </div>
+      <div class="quick-grid">
+        <article class="quick-item">
+          <p>Total</p>
+          <h3>{{ project.tasks_count || 0 }}</h3>
+        </article>
+        <article class="quick-item">
+          <p>Completed</p>
+          <h3>{{ project.completed_tasks_count || 0 }}</h3>
+        </article>
+        <article class="quick-item">
+          <p>Pending</p>
+          <h3>{{ (project.tasks_count || 0) - (project.completed_tasks_count || 0) }}</h3>
+        </article>
+      </div>
+      <button class="outline-btn" type="button" (click)="goToTasks()">
+        <i class="material-icons">open_in_new</i>
+        Open Project Tasks
+      </button>
+    </section>
+
+    <section class="content-card" *ngIf="activeTab === 'sprints'">
+      <div class="section-title">
+        <h2>Sprint Snapshot</h2>
+      </div>
+      <div class="quick-grid">
+        <article class="quick-item">
+          <p>Total Sprints</p>
+          <h3>{{ project.sprints_count || 0 }}</h3>
+        </article>
+        <article class="quick-item">
+          <p>Active Sprints</p>
+          <h3>{{ project.active_sprints_count || 0 }}</h3>
+        </article>
+        <article class="quick-item">
+          <p>Completed</p>
+          <h3>{{ (project.sprints_count || 0) - (project.active_sprints_count || 0) }}</h3>
+        </article>
+      </div>
+      <button class="outline-btn" type="button" (click)="goToSprints()">
+        <i class="material-icons">open_in_new</i>
+        Open Project Sprints
+      </button>
+    </section>
+
+    <section class="members-card" *ngIf="activeTab === 'team'">
+      <div class="section-title">
+        <h2>Team Members</h2>
+        <span>{{ members.length }}</span>
+      </div>
+
+      <div class="members-list" *ngIf="members.length > 0; else noMembers">
+        <div class="member-row" *ngFor="let member of members">
+          <div class="avatar">{{ getInitials(getMemberName(member)) }}</div>
+          <div class="member-info">
+            <h4>{{ getMemberName(member) }}</h4>
+            <p>{{ getMemberEmail(member) }}</p>
+          </div>
+          <span class="member-role">{{ getMemberRole(member) }}</span>
+        </div>
+      </div>
+
+      <ng-template #noMembers>
+        <p class="empty-text">No members found for this project yet.</p>
+      </ng-template>
+    </section>
+
+    <section class="content-card" *ngIf="activeTab === 'activity'">
+      <div class="section-title">
+        <h2>Recent Activity</h2>
+      </div>
+      <div class="timeline" *ngIf="getActivityItems().length > 0; else noActivity">
+        <div class="timeline-item" *ngFor="let item of getActivityItems()">
+          <div class="timeline-icon"><i class="material-icons">{{ item.icon }}</i></div>
+          <div class="timeline-body">
+            <p class="timeline-title">{{ item.title }}</p>
+            <p class="timeline-date">{{ item.date }}</p>
+          </div>
+        </div>
+      </div>
+      <ng-template #noActivity>
+        <p class="empty-text">No activity history available.</p>
+      </ng-template>
+    </section>
+  </ng-container>
+</div>

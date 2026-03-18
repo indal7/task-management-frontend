@@ -4,6 +4,7 @@ import { Observable, throwError, BehaviorSubject, interval } from 'rxjs';
 import { map, catchError, tap, switchMap, startWith } from 'rxjs/operators';
 
 import { API_ENDPOINTS, APP_CONFIG } from '../constants/api.constants';
+import { parseApiDate } from '../utils/date-time.util';
 import { 
   Notification, 
   CreateNotificationRequest,
@@ -22,6 +23,18 @@ export interface AppNotification {
   title?: string;
   user_id?: number;
   action_url?: string;
+  task_id?: number;
+  related_task_id?: number;
+  project_id?: number;
+  related_project_id?: number;
+  sprint_id?: number;
+  related_sprint_id?: number;
+}
+
+interface NotificationCollectionResponse {
+  unread_count?: number;
+  total_notifications?: number;
+  recent_notifications?: Notification[];
 }
 
 // Export the interface so it can be used elsewhere
@@ -87,20 +100,29 @@ export class NotificationService {
       params = params.set('unread_only', 'true');
     }
 
-    return this.http.get<ApiResponse<Notification[]>>(API_ENDPOINTS.NOTIFICATIONS.BASE, { params })
+    return this.http.get<ApiResponse<Notification[] | NotificationCollectionResponse>>(API_ENDPOINTS.NOTIFICATIONS.BASE, { params })
       .pipe(
         map(response => {
           if (response.success && response.data) {
-            // Convert API notifications to AppNotification format
-            return response.data.map(this.convertToAppNotification);
+            const notifications = this.extractNotifications(response.data);
+            const unreadCount = this.extractUnreadCount(response.data, notifications, unreadOnly);
+
+            return {
+              notifications: notifications.map(notification => this.convertToAppNotification(notification)),
+              unreadCount
+            };
           } else {
             throw new Error(response.message || 'Failed to load notifications');
           }
         }),
-        tap(notifications => {
+        tap(({ notifications, unreadCount }) => {
           this.notificationsSubject.next(notifications);
+          if (unreadCount !== undefined) {
+            this.unreadCountSubject.next(unreadCount);
+          }
           this.loadingSubject.next(false);
         }),
+        map(({ notifications }) => notifications),
         catchError(this.handleError.bind(this))
       );
   }
@@ -129,7 +151,7 @@ export class NotificationService {
           }
         }),
         tap(paginatedResponse => {
-          const appNotifications = paginatedResponse.data.map(this.convertToAppNotification);
+          const appNotifications = paginatedResponse.data.map(n => this.convertToAppNotification(n));
           this.notificationsSubject.next(appNotifications);
           this.loadingSubject.next(false);
         }),
@@ -223,7 +245,7 @@ export class NotificationService {
 
   // 🔧 IMPROVED: Handle new response format for delete
   deleteNotification(id: number): Observable<void> {
-    return this.http.delete<ApiResponse>(`${API_ENDPOINTS.NOTIFICATIONS.BASE}/${id}`)
+    return this.http.delete<ApiResponse>(API_ENDPOINTS.NOTIFICATIONS.DELETE(id))
       .pipe(
         map(response => {
           if (!response.success) {
@@ -276,17 +298,59 @@ export class NotificationService {
     this.unreadCountSubject.next(unreadCount);
   }
 
+  private extractNotifications(data: Notification[] | NotificationCollectionResponse): Notification[] {
+    if (Array.isArray(data)) {
+      return data;
+    }
+
+    if (Array.isArray(data.recent_notifications)) {
+      return data.recent_notifications;
+    }
+
+    return [];
+  }
+
+  private extractUnreadCount(
+    data: Notification[] | NotificationCollectionResponse,
+    notifications: Notification[],
+    unreadOnly: boolean
+  ): number | undefined {
+    if (!Array.isArray(data) && typeof data.unread_count === 'number') {
+      return data.unread_count;
+    }
+
+    if (!unreadOnly) {
+      return notifications.filter(notification => this.isNotificationRead(notification) === false).length;
+    }
+
+    return undefined;
+  }
+
+  private isNotificationRead(notification: Notification): boolean {
+    return notification.read ?? notification.is_read ?? false;
+  }
+
   // FIXED: Convert API Notification to AppNotification format
   private convertToAppNotification(notification: Notification): AppNotification {
+    const taskId = notification.task_id ?? notification.related_task_id;
+    const projectId = notification.project_id ?? notification.related_project_id;
+    const sprintId = notification.sprint_id ?? notification.related_sprint_id;
+
     return {
       id: notification.id,
       message: notification.message,
-      read: notification.is_read, // Handle both property names
-      createdAt: new Date(notification.created_at),
+      read: this.isNotificationRead(notification),
+      createdAt: parseApiDate(notification.created_at) || new Date(),
       type: notification.type,
       title: notification.title,
-      user_id: notification.user?.id || notification.id,
-      action_url: notification.action_url
+      user_id: notification.user_id ?? notification.user?.id ?? notification.related_user?.id,
+      action_url: notification.action_url,
+      task_id: taskId,
+      related_task_id: notification.related_task_id,
+      project_id: projectId,
+      related_project_id: notification.related_project_id,
+      sprint_id: sprintId,
+      related_sprint_id: notification.related_sprint_id
     };
   }
 

@@ -92,6 +92,36 @@
                   <mat-hint>Controls spacing and element sizes</mat-hint>
                 </mat-form-field>
               </div>
+
+              <div class="color-scheme-section">
+                <div class="subsection-heading">
+                  <mat-icon>palette</mat-icon>
+                  <div>
+                    <h4>Global Color Scheme</h4>
+                    <p>Choose the accent palette applied across the whole application. Changes preview instantly and are saved when you click Save Changes.</p>
+                  </div>
+                </div>
+
+                <div class="scheme-grid">
+                  <button
+                    type="button"
+                    class="scheme-card"
+                    *ngFor="let scheme of colorSchemeOptions"
+                    [class.selected]="generalForm.get('colorScheme')?.value === scheme.value"
+                    (click)="generalForm.patchValue({ colorScheme: scheme.value })">
+                    <div class="scheme-swatch" [ngClass]="scheme.previewClass">
+                      <span></span>
+                      <span></span>
+                      <span></span>
+                    </div>
+                    <div class="scheme-copy">
+                      <strong>{{ scheme.label }}</strong>
+                      <p>{{ scheme.description }}</p>
+                    </div>
+                    <mat-icon class="check-icon">check_circle</mat-icon>
+                  </button>
+                </div>
+              </div>
             </mat-card-content>
           </mat-card>
 
@@ -158,6 +188,10 @@
           </mat-card>
 
           <div class="form-actions">
+            <button mat-stroked-button type="button" class="secondary-action" (click)="resetAppearanceDefaults()">
+              <mat-icon>restart_alt</mat-icon>
+              <span>Reset Appearance</span>
+            </button>
             <button mat-raised-button color="primary" type="submit" [disabled]="generalForm.invalid || isGeneralLoading">
               <mat-spinner diameter="20" *ngIf="isGeneralLoading"></mat-spinner>
               <mat-icon *ngIf="!isGeneralLoading">save</mat-icon>
@@ -637,4 +671,122 @@
     <mat-icon>check_circle</mat-icon>
     {{ successMessage }}
   </div>
+
+  <ng-template #changePasswordDialog>
+    <h2 mat-dialog-title>Update Password</h2>
+    <mat-dialog-content class="password-dialog-content">
+    <div class="password-change-panel" [formGroup]="changePasswordForm" autocomplete="off">
+      <p class="password-dialog-subtitle">Enter your current password and set a new one.</p>
+
+      <input class="autofill-trap" type="text" autocomplete="username" tabindex="-1" aria-hidden="true">
+      <input class="autofill-trap" type="password" autocomplete="current-password" tabindex="-1" aria-hidden="true">
+
+      <div class="settings-row">
+        <mat-form-field appearance="outline">
+          <mat-label>Current Password</mat-label>
+          <input matInput [type]="hideCurrentPassword ? 'password' : 'text'" formControlName="currentPassword" autocomplete="new-password" name="settings-current-password" data-lpignore="true">
+          <button mat-icon-button matSuffix type="button" (click)="toggleCurrentPasswordVisibility()" [attr.aria-label]="hideCurrentPassword ? 'Show current password' : 'Hide current password'">
+            <mat-icon>{{ hideCurrentPassword ? 'visibility_off' : 'visibility' }}</mat-icon>
+          </button>
+          <mat-error *ngIf="changePasswordForm.get('currentPassword')?.invalid && changePasswordForm.get('currentPassword')?.touched">
+            Current password is required
+          </mat-error>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>New Password</mat-label>
+          <input matInput [type]="hideNewPassword ? 'password' : 'text'" formControlName="newPassword" autocomplete="new-password" name="settings-new-password" data-lpignore="true">
+          <button mat-icon-button matSuffix type="button" (click)="toggleNewPasswordVisibility()" [attr.aria-label]="hideNewPassword ? 'Show new password' : 'Hide new password'">
+            <mat-icon>{{ hideNewPassword ? 'visibility_off' : 'visibility' }}</mat-icon>
+          </button>
+          <mat-hint>Minimum 8 characters</mat-hint>
+          <mat-error *ngIf="changePasswordForm.get('newPassword')?.invalid && changePasswordForm.get('newPassword')?.touched">
+            New password must be at least 8 characters
+          </mat-error>
+        </mat-form-field>
+      </div>
+
+      <div class="settings-row">
+        <mat-form-field appearance="outline">
+          <mat-label>Confirm New Password</mat-label>
+          <input matInput [type]="hideConfirmPassword ? 'password' : 'text'" formControlName="confirmPassword" autocomplete="new-password" name="settings-confirm-password" data-lpignore="true">
+          <button mat-icon-button matSuffix type="button" (click)="toggleConfirmPasswordVisibility()" [attr.aria-label]="hideConfirmPassword ? 'Show confirm password' : 'Hide confirm password'">
+            <mat-icon>{{ hideConfirmPassword ? 'visibility_off' : 'visibility' }}</mat-icon>
+          </button>
+          <mat-error *ngIf="changePasswordForm.get('confirmPassword')?.invalid && changePasswordForm.get('confirmPassword')?.touched">
+            Confirm password is required
+          </mat-error>
+        </mat-form-field>
+      </div>
+
+      <p class="password-error" *ngIf="passwordErrorMessage">{{ passwordErrorMessage }}</p>
+
+    </div>
+    </mat-dialog-content>
+
+    <mat-dialog-actions align="end" class="password-actions">
+      <button mat-raised-button type="button" (click)="cancelPasswordChange()" [disabled]="isChangePasswordLoading">
+        <mat-icon>close</mat-icon>
+        Cancel
+      </button>
+      <button mat-raised-button color="primary" class="update-password-btn" type="button" (click)="submitPasswordChange()" [disabled]="isChangePasswordLoading">
+        <mat-spinner diameter="18" *ngIf="isChangePasswordLoading"></mat-spinner>
+        <mat-icon *ngIf="!isChangePasswordLoading">save</mat-icon>
+        <span>{{ isChangePasswordLoading ? 'Updating...' : 'Update Password' }}</span>
+      </button>
+    </mat-dialog-actions>
+  </ng-template>
+
+  <ng-template #loginHistoryDialog>
+    <h2 mat-dialog-title>Login History</h2>
+    <mat-dialog-content class="login-history-content">
+      <div *ngIf="loginHistoryLoading" class="login-history-loading">
+        <mat-spinner diameter="28"></mat-spinner>
+        <span>Loading login history...</span>
+      </div>
+
+      <div *ngIf="!loginHistoryLoading && loginHistoryErrorMessage" class="login-history-error">
+        <mat-icon>error</mat-icon>
+        <span>{{ loginHistoryErrorMessage }}</span>
+      </div>
+
+      <div *ngIf="!loginHistoryLoading && !loginHistoryErrorMessage && loginHistoryItems.length === 0" class="login-history-empty">
+        <mat-icon>history</mat-icon>
+        <p>No login events found in activity logs yet.</p>
+      </div>
+
+      <div *ngIf="!loginHistoryLoading && !loginHistoryErrorMessage && loginHistoryItems.length > 0" class="login-history-table-wrapper">
+        <table class="login-history-table">
+          <thead>
+            <tr>
+              <th>Action</th>
+              <th>Day</th>
+              <th>Date</th>
+              <th>Time</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let item of loginHistoryItems">
+              <td>
+                <span class="action-badge" [ngClass]="getLoginActionTone(item.action)">
+                  <mat-icon>{{ getLoginActionIcon(item.action) }}</mat-icon>
+                  {{ formatLoginAction(item.action) }}
+                </span>
+              </td>
+              <td>{{ getLoginEventDayLabel(item.created_at) }}</td>
+              <td>{{ item.created_at | date:'mediumDate' }}</td>
+              <td>{{ item.created_at | date:'shortTime' }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </mat-dialog-content>
+
+    <mat-dialog-actions align="end">
+      <button mat-raised-button type="button" (click)="closeLoginHistoryDialog()">
+        <mat-icon>close</mat-icon>
+        Close
+      </button>
+    </mat-dialog-actions>
+  </ng-template>
 </div>

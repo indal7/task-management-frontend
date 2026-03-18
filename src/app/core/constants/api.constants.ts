@@ -7,6 +7,9 @@ export const API_ENDPOINTS = {
     REGISTER: `${environment.apiUrl}/api/auth/register`,
     PROFILE: `${environment.apiUrl}/api/auth/profile`,
     ME: `${environment.apiUrl}/api/auth/me`,
+    LOGOUT: `${environment.apiUrl}/api/auth/logout`,
+    PRESENCE_HEARTBEAT: `${environment.apiUrl}/api/auth/presence/heartbeat`,
+    PRESENCE_STATUS: (userId: number) => `${environment.apiUrl}/api/auth/presence/status/${userId}`,
     CHANGE_PASSWORD: `${environment.apiUrl}/api/auth/change-password`,
     USERS: `${environment.apiUrl}/api/auth/users`,
     PING: `${environment.apiUrl}/api/auth/ping`,
@@ -18,6 +21,7 @@ export const API_ENDPOINTS = {
     ASSIGN: (id: number) => `${environment.apiUrl}/api/tasks/${id}/assign`,
     COMMENTS: (id: number) => `${environment.apiUrl}/api/tasks/${id}/comments`,
     TIME_LOG: (id: number) => `${environment.apiUrl}/api/tasks/${id}/time`,
+    USER_TIME_LOGS: `${environment.apiUrl}/api/tasks/time-logs`,
     OVERDUE: `${environment.apiUrl}/api/tasks/overdue`,
     COMMENT_BY_ID: (commentId: number) => `${environment.apiUrl}/api/tasks/comments/${commentId}`,
     TIME_LOGS: (timeLogId: number) => `${environment.apiUrl}/api/tasks/timelogs/${timeLogId}`,
@@ -40,7 +44,8 @@ export const API_ENDPOINTS = {
   NOTIFICATIONS: {
     BASE: `${environment.apiUrl}/api/notifications`,
     MARK_READ: (id: number) => `${environment.apiUrl}/api/notifications/${id}/read`,
-    READ_ALL: `${environment.apiUrl}/api/notifications/read-all`
+    READ_ALL: `${environment.apiUrl}/api/notifications/read-all`,
+    DELETE: (id: number) => `${environment.apiUrl}/api/notifications/${id}`
   },
   ANALYTICS: {
     BASE: `${environment.apiUrl}/api/analytics`,
@@ -48,6 +53,21 @@ export const API_ENDPOINTS = {
     USER_PRODUCTIVITY: `${environment.apiUrl}/api/analytics/user-productivity`,
     STATUS_DISTRIBUTION: `${environment.apiUrl}/api/analytics/task-status-distribution`,
     PRIORITY_DISTRIBUTION: `${environment.apiUrl}/api/analytics/task-priority-distribution`
+  },
+  ACTIVITY: {
+    BASE: `${environment.apiUrl}/api/activity`,
+    USER: (userId: number) => `${environment.apiUrl}/api/activity/users/${userId}`,
+    TASK: (taskId: number) => `${environment.apiUrl}/api/activity/tasks/${taskId}`,
+    PROJECT: (projectId: number) => `${environment.apiUrl}/api/activity/projects/${projectId}`
+  },
+  SEARCH: {
+    GLOBAL: `${environment.apiUrl}/api/search/global`,
+    TASKS:  `${environment.apiUrl}/api/search/tasks`,
+  },
+  USERS: {
+    BASE: `${environment.apiUrl}/api/users`,
+    BY_ID: (id: number) => `${environment.apiUrl}/api/users/${id}`,
+    ACTIVATE: (id: number) => `${environment.apiUrl}/api/users/${id}/activate`
   },
   ENUMS: {
     BASE: `${environment.apiUrl}/api/enums`,

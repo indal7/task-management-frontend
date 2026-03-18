@@ -6,12 +6,13 @@ export interface Sprint {
   id: number;
   name: string;
   description?: string;
-  status: 'PLANNING' | 'ACTIVE' | 'COMPLETED' | 'CANCELLED';
+  status: 'PLANNED' | 'PLANNING' | 'ACTIVE' | 'COMPLETED' | 'CANCELLED';
+  project_id?: number;
   start_date?: string;
   end_date?: string;
   goal?: string;
-  project: Project;
-  created_by: User;
+  project?: Project;
+  created_by?: User;
   created_at: string;
   updated_at: string;
   tasks_count: number;

@@ -12,7 +12,7 @@
      [class.sidebar-collapsed]="showSidebar && sidebarCollapsed">
   
   <!-- Sidebar -->
-  <app-sidebar *ngIf="showSidebar" (sidebarToggle)="onSidebarToggle($event)"></app-sidebar>
+  <app-sidebar *ngIf="showSidebar" [collapsed]="sidebarCollapsed" (sidebarToggle)="onSidebarToggle($event)"></app-sidebar>
   
   <!-- Main Content Area -->
   <div class="main-content" [class.with-sidebar]="showSidebar">

@@ -1,13 +1,14 @@
 import { Component, OnInit, OnDestroy } from '@angular/core';
 import { FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { forkJoin, Subject, of } from 'rxjs';
-import { takeUntil, catchError, map } from 'rxjs/operators';
+import { takeUntil, catchError, map, timeout, finalize } from 'rxjs/operators';
 
 import { AuthService } from '../../core/services/auth.service';
 import { AnalyticsService, TaskCompletionRate, UserPerformance } from '../../core/services/analytics.service';
 import { ProjectService } from '../../core/services/project.service';
 import { EnumService } from '../../core/services/enum.service';
 import { User, ProfileUpdateRequest } from '../../core/models';
+import { parseApiDate, formatDateTimeIST, formatDateIST } from '../../core/utils/date-time.util';
 
 export interface ProjectSummary {
   id: number;
@@ -37,11 +38,36 @@ export class ProfileDashboardComponent implements OnInit, OnDestroy {
   userPerformance: UserPerformance | null = null;
 
   isLoading = true;
+  isStatsLoading = false;
   isSaving = false;
   isEditMode = false;
   loadError: string | null = null;
   saveError: string | null = null;
   saveSuccess: string | null = null;
+
+  // ── Dev debug panel ──────────────────────────────────────────────
+  showDebug = false;
+  debugInfo: {
+    endpoint: string;
+    method: string;
+    payload: any;
+    status: 'idle' | 'sending' | 'success' | 'error' | 'timeout';
+    statusCode: number | null;
+    response: any;
+    timestamp: string | null;
+    durationMs: number | null;
+    errorMessage: string | null;
+  } = {
+    endpoint: '',
+    method: '',
+    payload: null,
+    status: 'idle',
+    statusCode: null,
+    response: null,
+    timestamp: null,
+    durationMs: null,
+    errorMessage: null
+  };
 
   editForm: FormGroup;
 
@@ -59,7 +85,13 @@ export class ProfileDashboardComponent implements OnInit, OnDestroy {
   }
 
   ngOnInit(): void {
-    this.loadData();
+    // Show profile immediately using cached localStorage user — no spinner delay
+    const cached = this.authService.getCurrentUserValue();
+    if (cached) {
+      this.currentUser = cached;
+      this.buildActivityFeed();
+      this.isLoading = false;
+    }
 
     this.authService.currentUser$
       .pipe(takeUntil(this.destroy$))
@@ -69,6 +101,9 @@ export class ProfileDashboardComponent implements OnInit, OnDestroy {
           this.populateForm(user);
         }
       });
+
+    this.loadUserFromApi();
+    this.loadStats();
   }
 
   ngOnDestroy(): void {
@@ -91,48 +126,87 @@ export class ProfileDashboardComponent implements OnInit, OnDestroy {
     });
   }
 
-  private loadData(): void {
-    this.isLoading = true;
-    this.loadError = null;
+  /** Phase 1 – load only user profile. Shows Edit button as soon as this resolves. */
+  private loadUserFromApi(): void {
+    if (!this.currentUser) {
+      // No cached data: show spinner until we have something
+      this.isLoading = true;
+      this.loadError = null;
+    }
+
+    this.authService.getCurrentUser()
+      .pipe(
+        timeout(8000),
+        catchError(() => of(null)),
+        takeUntil(this.destroy$),
+        finalize(() => {
+          this.isLoading = false;
+        })
+      )
+      .subscribe(user => {
+        if (user) {
+          this.currentUser = user;
+          this.buildActivityFeed();
+        } else if (!this.currentUser) {
+          this.loadError = 'Could not load your profile. Please refresh.';
+        }
+      });
+  }
+
+  /** Phase 2 – load analytics & projects in background. Never blocks the Edit button. */
+  private loadStats(): void {
+    this.isStatsLoading = true;
 
     forkJoin({
-      user: this.authService.getCurrentUser().pipe(catchError(() => of(null))),
-      taskStats: this.analyticsService.getTaskCompletionRate('month').pipe(catchError(() => of(null))),
-      performance: this.analyticsService.getUserProductivity().pipe(catchError(() => of(null))),
-      projectAnalytics: this.analyticsService.getProjectAnalytics().pipe(catchError(() => of([]))),
+      taskStats: this.analyticsService.getTaskCompletionRate('month').pipe(
+        timeout(12000),
+        catchError(() => of(null))
+      ),
+      performance: this.analyticsService.getUserProductivity().pipe(
+        timeout(12000),
+        catchError(() => of(null))
+      ),
+      projectAnalytics: this.analyticsService.getProjectAnalytics().pipe(
+        timeout(12000),
+        catchError(() => of([]))
+      ),
       projects: this.projectService.getProjects().pipe(
+        timeout(12000),
         map(resp => resp.data),
         catchError(() => of([] as any[]))
       )
     })
-      .pipe(takeUntil(this.destroy$))
+      .pipe(
+        takeUntil(this.destroy$),
+        finalize(() => {
+          this.isStatsLoading = false;
+        })
+      )
       .subscribe({
-        next: ({ user, taskStats, performance, projectAnalytics, projects }) => {
-          if (user) {
-            this.currentUser = user;
-          }
+        next: ({ taskStats, performance, projectAnalytics, projects }) => {
           this.taskStats = taskStats;
           this.userPerformance = performance;
-          this.buildActivityFeed();
 
           const projectStatusMap: { [id: number]: string } = {};
           for (const p of projects) {
             projectStatusMap[p.id] = p.status;
           }
-
           this.recentProjects = (projectAnalytics as any[]).slice(0, 5).map((p: any) => ({
             id: p.project_id,
             name: p.project_name,
             status: projectStatusMap[p.project_id] || 'ACTIVE',
             progress: Math.round(p.completion_rate ?? 0)
           }));
-          this.isLoading = false;
-        },
-        error: () => {
-          this.loadError = 'Failed to load profile data. Please try again.';
-          this.isLoading = false;
         }
+        // stats failures are non-critical — silently ignored
       });
+  }
+
+  /** Called from Retry button when user data failed to load. */
+  private loadData(): void {
+    this.loadError = null;
+    this.loadUserFromApi();
+    this.loadStats();
   }
 
   private populateForm(user: User): void {
@@ -164,7 +238,7 @@ export class ProfileDashboardComponent implements OnInit, OnDestroy {
         icon: 'login',
         title: 'Last login',
         description: this.currentUser?.last_login
-          ? `Logged in on ${new Date(this.currentUser.last_login).toLocaleString()}`
+          ? `Logged in on ${formatDateTimeIST(this.currentUser.last_login)}`
           : 'Login activity tracked',
         time: this.currentUser?.last_login
           ? this.getRelativeTime(this.currentUser.last_login)
@@ -174,7 +248,7 @@ export class ProfileDashboardComponent implements OnInit, OnDestroy {
       {
         icon: 'account_circle',
         title: 'Account created',
-        description: `Member since ${new Date(this.currentUser?.created_at || now).toLocaleDateString()}`,
+        description: `Member since ${formatDateIST(this.currentUser?.created_at)}`,
         time: this.currentUser?.created_at ? this.getRelativeTime(this.currentUser.created_at) : '',
         color: 'purple'
       }
@@ -224,17 +298,56 @@ export class ProfileDashboardComponent implements OnInit, OnDestroy {
       hourly_rate: v.hourly_rate || undefined
     };
 
+    const started = Date.now();
+    this.debugInfo = {
+      endpoint: 'PUT /api/auth/profile',
+      method: 'PUT',
+      payload,
+      status: 'sending',
+      statusCode: null,
+      response: null,
+      timestamp: new Date().toISOString(),
+      durationMs: null,
+      errorMessage: null
+    };
+
     this.authService.updateProfile(payload)
-      .pipe(takeUntil(this.destroy$))
-      .subscribe({
-        next: () => {
+      .pipe(
+        timeout(15000),
+        takeUntil(this.destroy$),
+        finalize(() => {
           this.isSaving = false;
+          if (this.debugInfo.status === 'sending') {
+            this.debugInfo.status = 'error';
+            this.debugInfo.durationMs = Date.now() - started;
+          }
+        })
+      )
+      .subscribe({
+        next: (user) => {
+          this.debugInfo.status = 'success';
+          this.debugInfo.statusCode = 200;
+          this.debugInfo.response = user;
+          this.debugInfo.durationMs = Date.now() - started;
+          this.currentUser = user;
+          this.buildActivityFeed();
           this.saveSuccess = 'Profile updated successfully!';
           this.isEditMode = false;
           setTimeout(() => { this.saveSuccess = null; }, 4000);
         },
         error: (err) => {
-          this.isSaving = false;
+          this.debugInfo.durationMs = Date.now() - started;
+          if (err?.name === 'TimeoutError') {
+            this.debugInfo.status = 'timeout';
+            this.debugInfo.statusCode = 408;
+            this.debugInfo.errorMessage = 'Request timed out after 15s';
+            this.saveError = 'Profile update timed out. Please check server response and try again.';
+            return;
+          }
+          this.debugInfo.status = 'error';
+          this.debugInfo.statusCode = err?.status ?? null;
+          this.debugInfo.errorMessage = err.message || 'Unknown error';
+          this.debugInfo.response = err?.error ?? null;
           this.saveError = err.message || 'Failed to update profile. Please try again.';
         }
       });
@@ -242,6 +355,18 @@ export class ProfileDashboardComponent implements OnInit, OnDestroy {
 
   refreshData(): void {
     this.loadData();
+  }
+
+  toggleDebug(): void {
+    this.showDebug = !this.showDebug;
+  }
+
+  get debugPayloadJson(): string {
+    try { return JSON.stringify(this.debugInfo.payload, null, 2); } catch { return ''; }
+  }
+
+  get debugResponseJson(): string {
+    try { return JSON.stringify(this.debugInfo.response, null, 2); } catch { return ''; }
   }
 
   // ── Computed helpers ──────────────────────────────────────────────
@@ -314,7 +439,9 @@ export class ProfileDashboardComponent implements OnInit, OnDestroy {
 
   getRelativeTime(dateStr: string): string {
     if (!dateStr) return '';
-    const diff = Date.now() - new Date(dateStr).getTime();
+    const parsedDate = parseApiDate(dateStr);
+    if (!parsedDate) return '';
+    const diff = Date.now() - parsedDate.getTime();
     const minutes = Math.floor(diff / 60000);
     if (minutes < 1) return 'Just now';
     if (minutes < 60) return `${minutes}m ago`;
@@ -322,7 +449,7 @@ export class ProfileDashboardComponent implements OnInit, OnDestroy {
     if (hours < 24) return `${hours}h ago`;
     const days = Math.floor(hours / 24);
     if (days < 30) return `${days}d ago`;
-    return new Date(dateStr).toLocaleDateString();
+    return parsedDate.toLocaleDateString();
   }
 
   getTimezoneOptions(): { value: string; label: string }[] {

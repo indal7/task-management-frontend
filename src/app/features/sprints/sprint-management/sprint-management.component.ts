@@ -1,6 +1,6 @@
 // src/app/features/sprints/sprint-management/sprint-management.component.ts
 import { Component, OnInit, OnDestroy } from '@angular/core';
-import { FormBuilder, FormGroup, Validators } from '@angular/forms';
+import { AbstractControl, FormBuilder, FormGroup, ValidationErrors, Validators } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { Subject, forkJoin } from 'rxjs';
 import { takeUntil } from 'rxjs/operators';
@@ -41,6 +41,7 @@ export class SprintManagementComponent implements OnInit, OnDestroy {
   burndownData: BurndownData[] = [];
   currentUser: User | null = null;
   availableProjects: Project[] = [];
+  currentProjectId: number | null = null;
 
   // UI State
   isLoading = false;
@@ -49,6 +50,8 @@ export class SprintManagementComponent implements OnInit, OnDestroy {
   showEditSprintModal = false;
   selectedTabIndex = 0;
   backlogSearchTerm = '';
+  createSprintError: string | null = null;
+  editSprintError: string | null = null;
 
   // Forms
   createSprintForm: FormGroup;
@@ -92,10 +95,15 @@ export class SprintManagementComponent implements OnInit, OnDestroy {
     this.route.params.pipe(
       takeUntil(this.destroy$)
     ).subscribe(params => {
-      const projectId = params['projectId'];
-      if (projectId) {
-        this.loadProjectData(parseInt(projectId));
+      const projectIdParam = params['projectId'];
+      const projectId = Number(projectIdParam);
+
+      if (Number.isInteger(projectId) && projectId > 0) {
+        this.loadProjectData(projectId);
       } else {
+        this.currentProjectId = null;
+        this.project = null;
+        this.errorMessage = null;
         this.loadAvailableProjects();
       }
     });
@@ -107,13 +115,16 @@ export class SprintManagementComponent implements OnInit, OnDestroy {
   }
 
   private initializeSprintForm(): FormGroup {
-    return this.fb.group({
-      name: ['', [Validators.required, Validators.minLength(3)]],
-      description: [''],
-      start_date: [''],
-      end_date: [''],
-      goal: ['']
-    });
+    return this.fb.group(
+      {
+        name: ['', [Validators.required, Validators.minLength(3)]],
+        description: [''],
+        start_date: [null, Validators.required],
+        end_date: [null, Validators.required],
+        goal: ['']
+      },
+      { validators: this.dateRangeValidator }
+    );
   }
 
   private loadAvailableProjects(): void {
@@ -130,10 +141,18 @@ export class SprintManagementComponent implements OnInit, OnDestroy {
   }
 
   onProjectSelect(projectId: number): void {
+    this.currentProjectId = Number(projectId);
     this.router.navigate(['/sprints', projectId]);
   }
 
   private loadProjectData(projectId: number): void {
+    if (!Number.isInteger(projectId) || projectId <= 0) {
+      this.errorMessage = 'Invalid project selected.';
+      this.isLoading = false;
+      return;
+    }
+
+    this.currentProjectId = Number(projectId);
     this.isLoading = true;
     this.errorMessage = null;
 
@@ -145,8 +164,8 @@ export class SprintManagementComponent implements OnInit, OnDestroy {
       next: (data: any) => {
         this.project = data.project;
         this.sprints = data.sprints || [];
-        this.processSprintTasks(Array.isArray(data.tasks) ? data.tasks : []);
         this.findCurrentSprint();
+        this.processSprintTasks(Array.isArray(data.tasks) ? data.tasks : []);
         this.loadBurndownData();
         this.isLoading = false;
       },
@@ -180,7 +199,9 @@ export class SprintManagementComponent implements OnInit, OnDestroy {
   }
 
   private findCurrentSprint(): void {
-    this.currentSprint = this.sprints.find(s => s.status === 'ACTIVE') || null;
+    const activeSprint = this.sprints.find(s => this.isSprintActive(s.status));
+    const plannedSprint = this.sprints.find(s => this.isSprintPlanned(s.status));
+    this.currentSprint = activeSprint || plannedSprint || null;
   }
 
   private loadBurndownData(): void {
@@ -329,45 +350,69 @@ export class SprintManagementComponent implements OnInit, OnDestroy {
 
   // Sprint Management
   openCreateSprintModal(): void {
-    this.createSprintForm.reset();
+    this.createSprintError = null;
+    this.createSprintForm.reset({
+      name: '',
+      description: '',
+      start_date: null,
+      end_date: null,
+      goal: ''
+    });
     this.showCreateSprintModal = true;
   }
 
   closeCreateSprintModal(): void {
     this.showCreateSprintModal = false;
+    this.createSprintError = null;
   }
 
   createSprint(): void {
-    if (this.createSprintForm.invalid || !this.project) return;
+    const resolvedProjectId = this.getResolvedProjectId();
+
+    if (!resolvedProjectId) {
+      this.createSprintError = 'Select a project before creating a sprint.';
+      return;
+    }
+
+    if (this.createSprintForm.invalid) {
+      this.markFormGroupTouched(this.createSprintForm);
+      this.createSprintError = 'Please fix the highlighted form errors before creating the sprint.';
+      return;
+    }
 
     const formData = this.createSprintForm.value;
     const sprintData = {
-      ...formData,
-      project_id: this.project.id
+      name: formData.name,
+      description: formData.description || undefined,
+      project_id: Number(resolvedProjectId),
+      start_date: this.toApiDate(formData.start_date),
+      end_date: this.toApiDate(formData.end_date),
+      goal: formData.goal || undefined
     };
 
+    this.createSprintError = null;
+
     this.sprintService.createSprint(sprintData).subscribe({
-      next: (sprint) => {
-        this.sprints.unshift(sprint);
+      next: () => {
         this.closeCreateSprintModal();
-        // If this is the first sprint, make it current
-        if (!this.currentSprint && sprint.status === 'ACTIVE') {
-          this.currentSprint = sprint;
+        if (resolvedProjectId) {
+          this.loadProjectData(resolvedProjectId);
         }
       },
       error: (error) => {
-        console.error('Failed to create sprint:', error);
+        this.createSprintError = this.getErrorMessage(error);
       }
     });
   }
 
   openEditSprintModal(sprint: Sprint): void {
     this.editingSprintId = sprint.id;
+    this.editSprintError = null;
     this.editSprintForm.patchValue({
       name: sprint.name,
       description: sprint.description,
-      start_date: sprint.start_date,
-      end_date: sprint.end_date,
+      start_date: this.toDateControlValue(sprint.start_date),
+      end_date: this.toDateControlValue(sprint.end_date),
       goal: sprint.goal
     });
     this.showEditSprintModal = true;
@@ -376,63 +421,61 @@ export class SprintManagementComponent implements OnInit, OnDestroy {
   closeEditSprintModal(): void {
     this.showEditSprintModal = false;
     this.editingSprintId = null;
+    this.editSprintError = null;
   }
 
   updateSprint(): void {
-    if (this.editSprintForm.invalid || !this.editingSprintId) return;
+    if (!this.editingSprintId) {
+      this.editSprintError = 'No sprint selected for editing.';
+      return;
+    }
+
+    if (this.editSprintForm.invalid) {
+      this.markFormGroupTouched(this.editSprintForm);
+      this.editSprintError = 'Please fix the highlighted form errors before updating the sprint.';
+      return;
+    }
 
     const formData = this.editSprintForm.value;
-    
-    this.sprintService.updateSprint(this.editingSprintId, formData).subscribe({
-      next: (updatedSprint) => {
-        const index = this.sprints.findIndex(s => s.id === this.editingSprintId);
-        if (index !== -1) {
-          this.sprints[index] = updatedSprint;
-          if (this.currentSprint?.id === this.editingSprintId) {
-            this.currentSprint = updatedSprint;
-          }
-        }
+    const sprintData = {
+      name: formData.name,
+      description: formData.description || undefined,
+      start_date: this.toApiDate(formData.start_date),
+      end_date: this.toApiDate(formData.end_date),
+      goal: formData.goal || undefined
+    };
+
+    this.editSprintError = null;
+
+    this.sprintService.updateSprint(this.editingSprintId, sprintData).subscribe({
+      next: () => {
         this.closeEditSprintModal();
+        this.refreshData();
       },
       error: (error) => {
-        console.error('Failed to update sprint:', error);
+        this.editSprintError = this.getErrorMessage(error);
       }
     });
   }
 
   startSprint(sprint: Sprint): void {
     this.sprintService.startSprint(sprint.id).subscribe({
-      next: (updatedSprint) => {
-        const index = this.sprints.findIndex(s => s.id === sprint.id);
-        if (index !== -1) {
-          this.sprints[index] = updatedSprint;
-        }
-        // Set as current sprint if it's now active
-        if (updatedSprint.status === 'ACTIVE') {
-          this.currentSprint = updatedSprint;
-        }
+      next: () => {
+        this.refreshData();
       },
       error: (error) => {
-        console.error('Failed to start sprint:', error);
+        this.errorMessage = this.getErrorMessage(error);
       }
     });
   }
 
   completeSprint(sprint: Sprint): void {
     this.sprintService.completeSprint(sprint.id).subscribe({
-      next: (updatedSprint) => {
-        const index = this.sprints.findIndex(s => s.id === sprint.id);
-        if (index !== -1) {
-          this.sprints[index] = updatedSprint;
-        }
-        // Clear current sprint if it was completed
-        if (this.currentSprint?.id === sprint.id) {
-          this.currentSprint = null;
-          this.findCurrentSprint(); // Look for another active sprint
-        }
+      next: () => {
+        this.refreshData();
       },
       error: (error) => {
-        console.error('Failed to complete sprint:', error);
+        this.errorMessage = this.getErrorMessage(error);
       }
     });
   }
@@ -441,17 +484,21 @@ export class SprintManagementComponent implements OnInit, OnDestroy {
     if (confirm(`Are you sure you want to delete "${sprint.name}"?`)) {
       this.sprintService.deleteSprint(sprint.id).subscribe({
         next: () => {
-          this.sprints = this.sprints.filter(s => s.id !== sprint.id);
-          if (this.currentSprint?.id === sprint.id) {
-            this.currentSprint = null;
-            this.findCurrentSprint();
-          }
+          this.refreshData();
         },
         error: (error) => {
-          console.error('Failed to delete sprint:', error);
+          this.errorMessage = this.getErrorMessage(error);
         }
       });
     }
+  }
+
+  isSprintPlanned(status: string | undefined): boolean {
+    return this.normalizeSprintStatus(status) === 'PLANNED';
+  }
+
+  isSprintActive(status: string | undefined): boolean {
+    return this.normalizeSprintStatus(status) === 'ACTIVE';
   }
 
   // UI Helper Methods
@@ -484,8 +531,9 @@ export class SprintManagementComponent implements OnInit, OnDestroy {
   }
 
   refreshData(): void {
-    if (this.project) {
-      this.loadProjectData(this.project.id);
+    const resolvedProjectId = this.getResolvedProjectId();
+    if (resolvedProjectId) {
+      this.loadProjectData(resolvedProjectId);
     }
   }
 
@@ -514,6 +562,70 @@ export class SprintManagementComponent implements OnInit, OnDestroy {
     this.currentSprint.completed_tasks_count = completedTasks;
     this.currentSprint.total_story_points = totalPoints;
     this.currentSprint.completed_story_points = completedPoints;
+  }
+
+  private normalizeSprintStatus(status: string | undefined): string {
+    if (!status) {
+      return '';
+    }
+
+    const normalizedStatus = status.toUpperCase();
+    return normalizedStatus === 'PLANNING' ? 'PLANNED' : normalizedStatus;
+  }
+
+  private getResolvedProjectId(): number | null {
+    const candidate =
+      this.project?.id ??
+      (this.project as any)?.project_id ??
+      this.currentProjectId ??
+      null;
+
+    const parsedProjectId = Number(candidate);
+    return Number.isInteger(parsedProjectId) && parsedProjectId > 0 ? parsedProjectId : null;
+  }
+
+  private toApiDate(value: string | Date | null | undefined): string | undefined {
+    if (!value) {
+      return undefined;
+    }
+
+    const parsedDate = value instanceof Date ? value : new Date(value);
+    if (Number.isNaN(parsedDate.getTime())) {
+      return undefined;
+    }
+
+    return parsedDate.toISOString().split('T')[0];
+  }
+
+  private toDateControlValue(value: string | undefined): Date | null {
+    if (!value) {
+      return null;
+    }
+
+    const parsedDate = new Date(value);
+    return Number.isNaN(parsedDate.getTime()) ? null : parsedDate;
+  }
+
+  private dateRangeValidator(control: AbstractControl): ValidationErrors | null {
+    const startDate = control.get('start_date')?.value;
+    const endDate = control.get('end_date')?.value;
+
+    if (!startDate || !endDate) {
+      return null;
+    }
+
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+      return { invalidDate: true };
+    }
+
+    return start <= end ? null : { dateRange: true };
+  }
+
+  private markFormGroupTouched(form: FormGroup): void {
+    form.markAllAsTouched();
+    form.updateValueAndValidity();
   }
 
   private getErrorMessage(error: any): string {

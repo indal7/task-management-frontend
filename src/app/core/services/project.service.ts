@@ -60,7 +60,8 @@ export class ProjectService {
       .pipe(
         map(response => {
           if (response.success && response.data !== undefined) {
-            const projects: Project[] = Array.isArray(response.data) ? response.data : [];
+            const rawProjects = Array.isArray(response.data) ? response.data : [];
+            const projects: Project[] = rawProjects.map(project => this.normalizeProject(project));
             // Backend returns a plain array; wrap it in PaginatedResponse shape for consistency
             return {
               success: true,
@@ -95,7 +96,11 @@ export class ProjectService {
       .pipe(
         map(response => {
           if (response.success && response.data) {
-            return response.data;
+            const projectRecord = this.extractProjectRecord(response.data as any, id);
+            if (!projectRecord) {
+              throw new Error('Project data was empty');
+            }
+            return this.normalizeProject(projectRecord);
           } else {
             throw new Error(response.message || 'Failed to load project');
           }
@@ -112,7 +117,7 @@ export class ProjectService {
       .pipe(
         map(response => {
           if (response.success && response.data) {
-            return response.data;
+            return this.normalizeProject(response.data as any);
           } else {
             throw new Error(response.message || 'Failed to create project');
           }
@@ -134,7 +139,7 @@ export class ProjectService {
       .pipe(
         map(response => {
           if (response.success && response.data) {
-            return response.data;
+            return this.normalizeProject(response.data as any);
           } else {
             throw new Error(response.message || 'Failed to update project');
           }
@@ -180,7 +185,7 @@ export class ProjectService {
       .pipe(
         map(response => {
           if (response.success && response.data) {
-            return response.data;
+            return (response.data as any[]).map(project => this.normalizeProject(project));
           } else {
             throw new Error(response.message || 'Failed to load recent projects');
           }
@@ -322,6 +327,64 @@ export class ProjectService {
       }
     }
     return 0;
+  }
+
+  private normalizeProject(project: any): Project {
+    const owner = project?.created_by || project?.owner || null;
+    const rawTeamMembers = Array.isArray(project?.team_members) ? project.team_members : [];
+    const teamMembers = rawTeamMembers
+      .map((member: any) => member?.user || member)
+      .filter((member: any) => member && member.id);
+
+    return {
+      id: project?.id,
+      name: project?.name || '',
+      description: project?.description || '',
+      status: (project?.status || 'PLANNING') as Project['status'],
+      start_date: project?.start_date || undefined,
+      end_date: project?.end_date || undefined,
+      budget: project?.budget ?? project?.estimated_hours ?? undefined,
+      created_by: owner,
+      project_manager: project?.project_manager || undefined,
+      team_members: teamMembers,
+      created_at: project?.created_at,
+      updated_at: project?.updated_at,
+      tasks_count: project?.tasks_count ?? 0,
+      completed_tasks_count: project?.completed_tasks_count ?? 0,
+      sprints_count: project?.sprints_count ?? 0,
+      active_sprints_count: project?.active_sprints_count ?? 0
+    };
+  }
+
+  private extractProjectRecord(payload: any, requestedId?: number): any {
+    if (!payload) {
+      return null;
+    }
+
+    if (Array.isArray(payload)) {
+      if (payload.length === 0) {
+        return null;
+      }
+
+      if (requestedId !== undefined) {
+        const matched = payload.find((item: any) => Number(item?.id) === Number(requestedId));
+        if (matched) {
+          return matched;
+        }
+      }
+
+      return payload[0];
+    }
+
+    if (payload.project) {
+      return this.extractProjectRecord(payload.project, requestedId);
+    }
+
+    if (payload.data) {
+      return this.extractProjectRecord(payload.data, requestedId);
+    }
+
+    return payload;
   }
 
   // 🔧 IMPROVED: Better error handling for new response format

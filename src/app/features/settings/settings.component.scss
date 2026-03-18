@@ -2,34 +2,34 @@
 
 // CSS Variables for theming
 :host {
-  --primary-color: #667eea;
-  --primary-hover: #5a67d8;
-  --accent-color: #764ba2;
-  --success-color: #4caf50;
-  --warning-color: #ff9800;
-  --error-color: #f44336;
+  --primary-color: var(--color-primary);
+  --primary-hover: var(--color-primary-dark);
+  --accent-color: var(--color-accent);
+  --success-color: var(--color-success);
+  --warning-color: var(--color-warning);
+  --error-color: var(--color-danger);
   
   // Light theme variables
-  --bg-primary: #ffffff;
-  --bg-secondary: #f8fafc;
-  --bg-surface: #ffffff;
-  --text-primary: #1a202c;
-  --text-secondary: #4a5568;
-  --text-muted: #718096;
-  --border-color: #e2e8f0;
+  --bg-primary: var(--color-bg);
+  --bg-secondary: var(--color-surface-alt);
+  --bg-surface: var(--color-surface);
+  --text-primary: var(--color-text-primary);
+  --text-secondary: var(--color-text-secondary);
+  --text-muted: var(--color-text-muted);
+  --border-color: var(--color-border);
   --shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
   --card-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
 }
 
 // Dark theme overrides
-:host-context(.dark-theme) {
-  --bg-primary: #1a202c;
-  --bg-secondary: #2d3748;
-  --bg-surface: #2d3748;
-  --text-primary: #f7fafc;
-  --text-secondary: #e2e8f0;
-  --text-muted: #a0aec0;
-  --border-color: #4a5568;
+:host-context(body.dark-theme) {
+  --bg-primary: var(--color-bg);
+  --bg-secondary: var(--color-surface-alt);
+  --bg-surface: var(--color-surface);
+  --text-primary: var(--color-text-primary);
+  --text-secondary: var(--color-text-secondary);
+  --text-muted: var(--color-text-muted);
+  --border-color: var(--color-border);
   --shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.3), 0 1px 2px 0 rgba(0, 0, 0, 0.2);
   --card-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.2);
 }
@@ -106,6 +106,124 @@
   padding: 2rem 0;
 }
 
+.color-scheme-section {
+  margin-top: 0.5rem;
+}
+
+.subsection-heading {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+
+  mat-icon {
+    color: var(--primary-color);
+    margin-top: 0.15rem;
+  }
+
+  h4 {
+    margin: 0 0 0.2rem;
+    color: var(--text-primary);
+    font-size: 1rem;
+    font-weight: 700;
+  }
+
+  p {
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+  }
+}
+
+.scheme-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 0.9rem;
+}
+
+.scheme-card {
+  width: 100%;
+  border: 1px solid var(--border-color);
+  border-radius: 14px;
+  background: var(--bg-primary);
+  padding: 0.9rem;
+  display: grid;
+  grid-template-columns: 72px 1fr auto;
+  gap: 0.85rem;
+  align-items: center;
+  cursor: pointer;
+  text-align: left;
+  transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+
+  &:hover {
+    transform: translateY(-1px);
+    border-color: var(--primary-color);
+    box-shadow: var(--shadow);
+  }
+
+  &.selected {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary-color) 14%, transparent);
+  }
+
+  .check-icon {
+    color: var(--text-muted);
+  }
+
+  &.selected .check-icon {
+    color: var(--primary-color);
+  }
+}
+
+.scheme-swatch {
+  height: 56px;
+  border-radius: 12px;
+  padding: 0.55rem;
+  display: flex;
+  align-items: flex-end;
+  gap: 0.32rem;
+
+  span {
+    display: block;
+    flex: 1;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.86);
+
+    &:nth-child(1) { height: 40%; }
+    &:nth-child(2) { height: 68%; }
+    &:nth-child(3) { height: 52%; }
+  }
+}
+
+.scheme-preview-ocean {
+  background: linear-gradient(135deg, #0d2e4a 0%, #0f6ea7 58%, #0b8f87 100%);
+}
+
+.scheme-preview-forest {
+  background: linear-gradient(135deg, #18362b 0%, #2f6e54 58%, #7da66f 100%);
+}
+
+.scheme-preview-sunset {
+  background: linear-gradient(135deg, #622c32 0%, #c85c3b 54%, #f0a94b 100%);
+}
+
+.scheme-copy {
+  min-width: 0;
+
+  strong {
+    display: block;
+    color: var(--text-primary);
+    margin-bottom: 0.18rem;
+  }
+
+  p {
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: 0.82rem;
+    line-height: 1.35;
+  }
+}
+
 // Card Styling
 .settings-section {
   margin-bottom: 2rem;
@@ -151,6 +269,20 @@
 
   ::ng-deep {
     .mat-mdc-form-field {
+      .mat-mdc-form-field-flex {
+        align-items: center;
+      }
+
+      .mat-mdc-form-field-infix {
+        min-height: 48px;
+        display: flex;
+        align-items: center;
+      }
+
+      .mat-mdc-select-trigger {
+        align-items: center;
+      }
+
       .mat-mdc-text-field-wrapper {
         background-color: var(--bg-primary);
         
@@ -197,7 +329,7 @@
       }
       
       &.mdc-list-item--selected {
-        background-color: rgba(102, 126, 234, 0.12);
+        background-color: color-mix(in srgb, var(--primary-color) 12%, transparent);
         color: var(--primary-color);
       }
       
@@ -339,6 +471,213 @@
   }
 }
 
+.password-change-panel {
+  margin: 0;
+  padding: 0.25rem 0.1rem;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+
+  h4 {
+    margin: 0 0 0.85rem;
+    color: var(--text-primary);
+    font-size: 1rem;
+    font-weight: 600;
+  }
+}
+
+.password-dialog-content {
+  min-width: 320px;
+  max-width: 100%;
+  overflow: visible;
+}
+
+.password-dialog-subtitle {
+  margin: 0 0 0.75rem;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+}
+
+.autofill-trap {
+  position: absolute;
+  left: -10000px;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.password-error {
+  margin: 0.5rem 0 0;
+  color: var(--error-color);
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+.password-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+
+  button {
+    min-width: 150px;
+  }
+
+  .update-password-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.45rem;
+
+    .mat-icon,
+    span,
+    .mdc-button__label {
+      color: #ffffff !important;
+    }
+
+    .mat-mdc-progress-spinner circle,
+    .mat-mdc-spinner circle {
+      stroke: #ffffff !important;
+    }
+  }
+}
+
+::ng-deep .change-password-dialog .mat-mdc-dialog-surface {
+  border-radius: 12px;
+}
+
+/* Overlay-level theme tokens for dialog content (outside component host tree). */
+::ng-deep .change-password-dialog {
+  --primary-color: var(--color-primary);
+  --primary-hover: var(--color-primary-dark);
+  --bg-primary: var(--color-bg);
+  --bg-secondary: var(--color-surface-alt);
+  --bg-surface: var(--color-surface);
+  --text-primary: var(--color-text-primary);
+  --text-secondary: var(--color-text-secondary);
+  --border-color: var(--color-border);
+}
+
+::ng-deep body.dark-theme .change-password-dialog {
+  --primary-color: var(--color-primary);
+  --primary-hover: var(--color-primary-dark);
+  --bg-primary: var(--color-bg);
+  --bg-secondary: var(--color-surface-alt);
+  --bg-surface: var(--color-surface);
+  --text-primary: var(--color-text-primary);
+  --text-secondary: var(--color-text-secondary);
+  --border-color: #4a5568;
+}
+
+::ng-deep .change-password-dialog .mat-mdc-dialog-container {
+  color: var(--text-primary);
+}
+
+::ng-deep .change-password-dialog .mat-mdc-raised-button.mat-primary {
+  background-color: var(--primary-color) !important;
+  color: #ffffff !important;
+}
+
+::ng-deep .change-password-dialog .mat-mdc-raised-button.mat-primary:hover:not(:disabled) {
+  background-color: var(--primary-hover) !important;
+}
+
+.login-history-content {
+  min-height: 220px;
+  max-height: 65vh;
+  min-width: 320px;
+}
+
+.login-history-loading,
+.login-history-error,
+.login-history-empty {
+  min-height: 160px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.65rem;
+  text-align: center;
+  color: var(--text-secondary);
+
+  mat-icon {
+    color: var(--primary-color);
+  }
+}
+
+.login-history-error mat-icon {
+  color: var(--error-color);
+}
+
+.login-history-table-wrapper {
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  overflow: auto;
+  background: var(--bg-secondary);
+}
+
+.login-history-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 520px;
+
+  th,
+  td {
+    padding: 0.7rem 0.8rem;
+    border-bottom: 1px solid var(--border-color);
+    text-align: left;
+    color: var(--text-primary);
+    vertical-align: middle;
+    font-size: 0.9rem;
+  }
+
+  th {
+    background: var(--bg-primary);
+    color: var(--text-secondary);
+    font-weight: 600;
+    position: sticky;
+    top: 0;
+    z-index: 1;
+  }
+
+  tbody tr:last-child td {
+    border-bottom: none;
+  }
+}
+
+.action-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border-radius: 999px;
+  padding: 0.25rem 0.6rem;
+  background: rgba(102, 126, 234, 0.15);
+  color: var(--primary-color);
+  font-weight: 600;
+
+  mat-icon {
+    font-size: 16px;
+    width: 16px;
+    height: 16px;
+  }
+
+  &.logout {
+    background: rgba(255, 152, 0, 0.15);
+    color: var(--warning-color);
+  }
+
+  &.failed {
+    background: rgba(244, 67, 54, 0.15);
+    color: var(--error-color);
+  }
+}
+
+::ng-deep .login-history-dialog .mat-mdc-dialog-surface {
+  border-radius: 12px;
+}
+
 .action-buttons {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -371,6 +710,7 @@
 .form-actions {
   display: flex;
   justify-content: flex-end;
+  gap: 0.75rem;
   margin-top: 2rem;
   padding-top: 1rem;
   border-top: 1px solid var(--border-color);
@@ -397,6 +737,12 @@
         color: white;
       }
     }
+  }
+
+  .secondary-action {
+    color: var(--text-primary);
+    border-color: var(--border-color);
+    background: var(--bg-surface);
   }
 }
 
@@ -486,7 +832,7 @@
     }
     
     &.mdc-list-item--selected:not(.mdc-list-item--disabled) {
-      background-color: rgba(102, 126, 234, 0.12);
+      background-color: color-mix(in srgb, var(--primary-color) 12%, transparent);
       color: var(--primary-color);
     }
     
@@ -602,12 +948,12 @@
     height: 20px;
   }
 
-  &.accent-purple { background: linear-gradient(135deg, #667eea, #764ba2); }
-  &.accent-blue   { background: linear-gradient(135deg, #2196f3, #1565c0); }
-  &.accent-green  { background: linear-gradient(135deg, #4caf50, #2e7d32); }
-  &.accent-orange { background: linear-gradient(135deg, #ff9800, #e65100); }
-  &.accent-teal   { background: linear-gradient(135deg, #009688, #00695c); }
-  &.accent-red    { background: linear-gradient(135deg, #f44336, #b71c1c); }
+  &.accent-purple { background: linear-gradient(135deg, var(--primary-color), var(--accent-color)); }
+  &.accent-blue   { background: linear-gradient(135deg, var(--primary-color), color-mix(in srgb, var(--primary-color) 72%, #03131d)); }
+  &.accent-green  { background: linear-gradient(135deg, var(--success-color), color-mix(in srgb, var(--success-color) 70%, #0f1f12)); }
+  &.accent-orange { background: linear-gradient(135deg, var(--warning-color), color-mix(in srgb, var(--warning-color) 72%, #3a2200)); }
+  &.accent-teal   { background: linear-gradient(135deg, var(--accent-color), color-mix(in srgb, var(--accent-color) 74%, #08211f)); }
+  &.accent-red    { background: linear-gradient(135deg, var(--error-color), color-mix(in srgb, var(--error-color) 74%, #2a1111)); }
 }
 
 // Tab icons
@@ -669,10 +1015,10 @@
   }
 
   &.selected {
-    background: linear-gradient(135deg, #667eea, #764ba2);
+    background: linear-gradient(135deg, var(--primary-color), var(--accent-color));
     border-color: transparent;
     color: white;
-    box-shadow: 0 2px 8px rgba(102, 126, 234, 0.4);
+    box-shadow: 0 2px 8px color-mix(in srgb, var(--primary-color) 35%, transparent);
   }
 
   &.weekend {
